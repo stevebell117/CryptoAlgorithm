@@ -1,4 +1,5 @@
 from coinbase.wallet.client import Client
+from Objects.price import Price
 
 class Coinbase():
     def __init__(self, config):
@@ -13,6 +14,8 @@ class Coinbase():
         price = self.client.get_spot_price(currency=currency_code)
         if self.last_price != float(price.amount):
             self.last_price = float(price.amount)
-            prices.add_new_price(price.amount)
+            prices.add_new_price_defaulted_time(price.amount)
             temp_prices = prices.get_last_prices(len(prices.price_list))
         return price
+
+

@@ -1,4 +1,5 @@
 from Objects.price import Price
+from datetime import datetime
 
 class Prices():    
     def __init__(self):
@@ -21,10 +22,14 @@ class Prices():
         last_price = float(price_collection[-1].amount)
         return last_price - first_price
 
-    def add_new_price(self, price_amount):
+    def add_new_price_defaulted_time(self, price_amount):
         new_price = Price()
         new_price.amount = price_amount
+        new_price.date_and_time = datetime.now()
         self.price_list.append(new_price)
+
+    def add_new_price_to_list(self, price):
+        self.price_list.append(price)
 
     def average_time_between_prices(self):
         total_time_in_seconds = 0
@@ -40,3 +45,9 @@ class Prices():
         
         return total_time_in_seconds / total_times
             
+    def assign_prices_from_history(self, coinbase_prices):
+        for price in coinbase_prices['prices']:
+            new_price = Price()
+            new_price.amount = float(price['price'])
+            new_price.date_and_time = datetime.strptime(price['time'], '%Y-%m-%dT%H:%M:%SZ')
+            self.add_new_price_to_list(new_price)

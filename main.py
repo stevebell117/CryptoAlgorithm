@@ -1,7 +1,9 @@
 from configparser import ConfigParser
 import time
 import sys
+import json
 from Logic.coinbase import Coinbase
+from coinbase.wallet.model import APIObject
 from Objects.prices import Prices
 from Objects.price import Price
 from Logic.algorithm import Algorithm
@@ -25,18 +27,19 @@ def main():
             break
 
     coinbase.set_current_btc_amount(current_btc_amount)
+    coinbase_prices = coinbase.client._make_api_object(coinbase.client._get('v2', 'prices', 'BTC-USD', 'historic'), APIObject)
+    prices.assign_prices_from_history(coinbase_prices)
     temp_price = Price()
+    runs = 1;
     while(1):
         price = coinbase.get_current_price(currency_code, prices)
         if(price != temp_price):
             print('CURRENT VALUE = ${0:.2f}. Current BTC = ${1:.2f}'.format(float(price.amount) * current_btc_amount, float(price.amount)))
-            algorithm.analyze_last_prices(len(prices.price_list), prices.price_list)
-            print('Upward Trend? {0}'.format(algorithm.upward_trend))
-            print('Downward Trend? {0}'.format(algorithm.downward_trend))
+            algorithm.analyze_last_prices(runs, prices.price_list)
             algorithm.analyze_potential_spike(prices.price_list)
-            print('Spike Detected? {0}'.format(algorithm.spike_detected))
-
+            print(json.dumps(algorithm, default=lambda o: o.__dict__))
             temp_price = price
+            runs += 1
         time.sleep(1)
 
 
