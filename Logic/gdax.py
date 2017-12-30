@@ -2,10 +2,11 @@ from gdax import AuthenticatedClient
 from Objects.gdax import GdaxTicker
 from Objects.gdax import GdaxTrades 
 from Objects.gdax import GdaxHistoric
-from Objects.gdax import GdaxWebSocket
+from Objects.gdax import BidAskStackType
 from Logic.custom_orderbook import CustomOrderBook
 import sys
 from gdax.order_book import OrderBook
+import datetime as dt
 import threading
 import time
 import gdax as gdax_lib
@@ -18,7 +19,6 @@ class Gdax:
         self.ticker = GdaxTicker()
         self.trades = GdaxTrades()
         self.historics = GdaxHistoric()
-        self.web_socket = GdaxWebSocket()
 
     def get_product_order_book(self, product = 'BTC-USD'):
         return self.client.get_product_order_book(product)
@@ -96,10 +96,29 @@ class Gdax:
 
     def start_order_book_poll(self):
         def poll_order_book(gdax):
-            order_book = CustomOrderBook()
-            order_book.start()       
-            while(True):       
-                time.sleep(10)
+            order_book = CustomOrderBook(self)
+            order_book.start()
+            previous_type, previous_amount = BidAskStackType.NEITHER, 0
+            while(True):
+                current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()     
+                current_amount = float(order_book.OrderBookCollection.last_amount)
+                if current_type != BidAskStackType.NEITHER and previous_type != current_type:
+                    if previous_amount != 0:
+                        if previous_amount != current_amount:
+                            if current_type == BidAskStackType.STACKED_ASK:
+                                if 1 - (previous_amount / current_amount) > 0.005:
+                                    #Consider sell
+                                    print('{2} SELL - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (previous_amount / current_amount)))
+                                    previous_amount = current_amount
+                            elif current_type == BidAskStackType.STACKED_BID:
+                                if 1 - (current_amount / previous_amount) > 0.005:
+                                    #Consider buy
+                                    print('{2} BUY - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (current_amount / previous_amount)))
+                                    previous_amount = current_amount
+                    else:
+                        previous_amount = current_amount
+                        print('Starting amount {0} @ {1}'.format(current_amount, dt.datetime.now()))
+                time.sleep(1)
             order_book.close()
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True

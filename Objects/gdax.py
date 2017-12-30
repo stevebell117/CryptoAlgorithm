@@ -112,6 +112,7 @@ class GdaxHistoricRow:
 class GdaxOrderBookInfoCollection():
     def __init__(self):
         self.OrderBookCollection = list()
+        self.last_amount = 0
 
     class GdaxOrderBookInfo():
         def __init__(self, bid = None, ask = None, bid_depth = None, ask_depth = None):
@@ -122,28 +123,26 @@ class GdaxOrderBookInfoCollection():
 
     def add_new_row(self, bid = None, ask = None, bid_depth = None, ask_depth = None):
         new_row = self.GdaxOrderBookInfo(bid, ask, bid_depth, ask_depth)
-        if len(self.OrderBookCollection) > 500:
+        if len(self.OrderBookCollection) > max_list_size_for_entries:
             self.OrderBookCollection.pop(0)
         self.OrderBookCollection.append(new_row)
 
     def determine_if_sell_or_buy_bids_are_stacked(self):
         last_bid_depth = 0
         last_ask_depth = 0
-        if len(self.OrderBookCollection) < 20:
+        if len(self.OrderBookCollection) < 25:
             pass
         else:
-            for order_info in self.OrderBookCollection[-20:]:
+            for order_info in self.OrderBookCollection[-25:]:
                 if order_info._bid_depth < 3 and order_info._ask_depth < 3:
                     break #nothing to do here, get out and retry on next cycle
                 elif order_info._bid_depth > 3 and order_info._ask_depth < 3 and last_ask_depth == 0:
-                    last_bid_depth = order_info._bid_depth
+                    last_bid_depth += 1
                 elif order_info._bid_depth < 3 and order_info._ask_depth > 3 and last_bid_depth == 0:
-                    last_ask_depth = order_info._ask_depth
-                else:
-                    break
-        if last_ask_depth > 0:
+                    last_ask_depth += 1
+        if last_ask_depth >= 12:
             return BidAskStackType.STACKED_ASK
-        elif last_bid_depth > 0:
+        elif last_bid_depth >= 12:
             return BidAskStackType.STACKED_BID
         return BidAskStackType.NEITHER
 
