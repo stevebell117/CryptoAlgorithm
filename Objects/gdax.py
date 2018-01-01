@@ -2,6 +2,7 @@ from datetime import datetime
 import dateutil.parser
 from enum import Enum
 import json
+import datetime as dt
 
 max_list_size_for_entries = 300
 
@@ -70,15 +71,35 @@ class GdaxTradeRow():
 class GdaxHistoric():
     def __init__(self):
         self.historics = list()
+    
+    def do_something_with_historical_row(self, bid, ask, time):
+        if len(self.historics) > 0:
+            historic = self.historics[-1]
+            if historic.time.minute == time.minute:
+                historic.close = bid
+                historic.change_type = self.determine_change_type(historic.open, historic.close)
+            else:
+                new_historic = GdaxHistoricRow()
+                new_historic.populate_historic_row(bid, ask, dt.datetime.now())
+                self.historics.append(new_historic)
+        else:
+            new_historic = GdaxHistoricRow()
+            new_historic.populate_historic_row(bid, ask, dt.datetime.now())
+            self.historics.append(new_historic)
 
-    def add_rows_to_history(self, history_rows):
-        for history_row in history_rows:
-            if any(x.time == history_row[0] for x in self.historics) is False:
-                row = GdaxHistoricRow()
-                row.populate_historic_row(history_row)
-                if len(self.historics) > max_list_size_for_entries:
-                    self.historics.pop(0)
-                self.historics.append(row)
+    def determine_change_type(self, opening, close):
+        percent_to_compare= .00025
+        if difference_in_period == 0:
+            return ChangeType.NO_CHANGE
+        elif difference_in_period > 0 and difference_in_period / opening < percent_to_compare:
+            return ChangeType.RISE
+        elif difference_in_period > 0 and difference_in_period / opening >= percent_to_compare:
+            return ChangeType.SHARP_RISE
+        elif difference_in_period < 0 and difference_in_period / opening < percent_to_compare:
+            return ChangeType.FALL
+        elif difference_in_period < 0 and difference_in_period / opening >= percent_to_compare:
+            return ChangeType.SHARP_FALL
+        return ChangeType.NO_CHANGE
 
 class GdaxHistoricRow:
     def __init__(self):
@@ -90,24 +111,11 @@ class GdaxHistoricRow:
         self.volume = 0
         self.change_type = ChangeType.NO_CHANGE
 
-    def populate_historic_row(self, trade_object):
-        self.time = float(trade_object[0]) #We'll need to just determine seconds by doing 24 * 60 * 60 to determine a day before entry...
-        self.low = float(trade_object[1])
-        self.high = float(trade_object[2])
-        self.open = float(trade_object[3])
-        self.close = float(trade_object[4])
-        self.volume = float(trade_object[5])
-        difference_in_period = self.close - self.open
-        if difference_in_period > 0 and abs(difference_in_period / self.open) < .0005:
-            self.change_type = ChangeType.NO_CHANGE
-        elif difference_in_period > 0 and difference_in_period / self.open < .005:
-            self.change_type = ChangeType.RISE
-        elif difference_in_period > 0 and difference_in_period / self.open >= .005:
-            self.change_type = ChangeType.SHARP_RISE
-        elif difference_in_period < 0 and difference_in_period / self.open < .005:
-            self.change_type = ChangeType.FALL
-        elif difference_in_period < 0 and difference_in_period / self.open >= .005:
-            self.change_type = ChangeType.SHARP_FALL
+    def populate_historic_row(self, bid, ask, time):
+        self.open = ask
+        self.close = ask
+        self.low = bid
+        self.high = ask
 
 class GdaxOrderBookInfoCollection():
     def __init__(self):
@@ -157,26 +165,3 @@ class BidAskStackType(Enum):
     NEITHER = 0
     STACKED_BID = 1
     STACKED_ASK = 2
-
-# class GdaxOrderBookInfo():
-#     class OrderInfo():
-#         def __init__(self):
-#             self.order_id = ''
-#             self.size = 0
-#             self.price = 0
-#             self.side = 'sell'
-
-#     def __init__(self, side = 'sell', price = 0):
-#         self.type = SocketType.RECEIVED
-#         self.side = side
-#         self.price = price
-#         self.remaining_size = 0
-
-#     def populate_row(self, row_data):
-#         if row_data['type'] == 'done' or row_data['type'] == 'open':
-#            self.remaining_size = float(row_data['remaining_size'])
-#         elif row_data['type'] == 'received':
-#             self.remaining_size += row_data['size']
-#         if self.remaining_size == 0:
-#             return True
-#         return False

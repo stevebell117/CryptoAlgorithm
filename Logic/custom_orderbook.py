@@ -1,5 +1,6 @@
 from gdax.order_book import OrderBook
 from Objects.gdax import GdaxOrderBookInfoCollection
+from Objects.gdax import GdaxHistoric
 import datetime as dt
 import sys
 import copy
@@ -13,7 +14,9 @@ class CustomOrderBook(OrderBook):
         self._bid_depth = None
         self._ask_depth = None
         self.OrderBookCollection = GdaxOrderBookInfoCollection()
+        self.historics = GdaxHistoric()
         self.gdax = gdax_object
+        self.historics_count = 0
 
     def on_message(self, message):
         try:
@@ -37,6 +40,11 @@ class CustomOrderBook(OrderBook):
                 self._ask_depth = ask_depth
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
                 self.OrderBookCollection.last_amount = ask
+                self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
+                if self.historics_count != len(self.historics.historics):
+                    [print(x.__dict__) for x in self.historics.historics]
+                    self.historics_count = len(self.historics.historics)
+                
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
         except:
             print('EXCEPTION IN ON_MESSAGE: {0}'.format(sys.exc_info()[0]))

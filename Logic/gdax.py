@@ -3,6 +3,7 @@ from Objects.gdax import GdaxTicker
 from Objects.gdax import GdaxTrades 
 from Objects.gdax import GdaxHistoric
 from Objects.gdax import BidAskStackType
+from Objects.gdax import ChangeType
 from Logic.custom_orderbook import CustomOrderBook
 import sys
 from gdax.order_book import OrderBook
@@ -19,6 +20,15 @@ class Gdax:
         self.ticker = GdaxTicker()
         self.trades = GdaxTrades()
         self.historics = GdaxHistoric()
+        self.trend = ChangeType.NO_CHANGE
+        self.btc_account = config['DEFAULT']['btc_account']
+        self.usd_account = config['DEFAULT']['usd_account']
+    
+    def get_current_btc_amount(self):
+        return float(self.client.get_account(self.btc_account)['balance'])
+
+    def get_current_usd_amount(self):
+        return float(self.client.get_account(self.usd_account)['balance'])
 
     def get_product_order_book(self, product = 'BTC-USD'):
         return self.client.get_product_order_book(product)
@@ -83,13 +93,18 @@ class Gdax:
         for x in sorted(temp, key=lambda x_key: x_key['time']):
             print(x)
 
-    def sell_bitcoin(self, gdax_client, size = 0, price = 0):
-        return gdax_client.sell(price = str(price), #USD
-                size = str(size), #BTC
-                type = 'limit',
+    def sell_bitcoin(self, size = 0, price = 0):
+        return self.client.sell(size = str(size), #USD
                 product_id = 'BTC-USD',
-                time_in_force = 'GTT',
-                cancel_after = 'min')
+                type = 'market')
+
+    def buy_bitcoin(self, size = 0, price = 0):
+        usd = round(self.get_current_usd_amount() * .92, 2)
+        #actual_size = round(usd / price, 4)
+        #if actual_size >= .0001:
+        return self.client.buy(funds = str(usd), #USD
+            product_id = 'BTC-USD',
+            type = 'market')
 
     def get_orders(self, gdax_client):
         return gdax_client.get_orders()        
@@ -100,6 +115,7 @@ class Gdax:
             order_book.start()
             previous_type, previous_amount = BidAskStackType.NEITHER, 0
             while(True):
+                #self.determine_historic_trend()
                 current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()     
                 current_amount = float(order_book.OrderBookCollection.last_amount)
                 if current_type != BidAskStackType.NEITHER and previous_type != current_type:
@@ -109,11 +125,23 @@ class Gdax:
                                 if 1 - (previous_amount / current_amount) > 0.005:
                                     #Consider sell
                                     print('{2} SELL - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (previous_amount / current_amount)))
+                                    # if self.get_current_btc_amount() >= .0001:
+                                    #     response = self.sell_bitcoin('.0001', current_amount)
+                                    #     try:
+                                    #         print('Size: {0:.4f}'.format(response['size']))
+                                    #     except:
+                                    #         print(response)
                                     previous_amount = current_amount
                             elif current_type == BidAskStackType.STACKED_BID:
                                 if 1 - (current_amount / previous_amount) > 0.005:
                                     #Consider buy
                                     print('{2} BUY - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (current_amount / previous_amount)))
+                                    # if self.get_current_usd_amount() >= .0001 * current_amount:
+                                    #     response = self.buy_bitcoin('.0001', current_amount)
+                                    #     try:
+                                    #         print('Existing USD: {0:.6f} | Specified Buy: {1:.2f}'.format(response['funds'], response['specified_funds']))
+                                    #     except:
+                                    #         print(response)
                                     previous_amount = current_amount
                     else:
                         previous_amount = current_amount
