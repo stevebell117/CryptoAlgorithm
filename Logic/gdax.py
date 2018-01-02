@@ -25,10 +25,10 @@ class Gdax:
         self.usd_account = config['DEFAULT']['usd_account']
     
     def get_current_btc_amount(self):
-        return float(self.client.get_account(self.btc_account)['balance'])
+        return float(self.client.get_account(self.btc_account)['available'])
 
     def get_current_usd_amount(self):
-        return float(self.client.get_account(self.usd_account)['balance'])
+        return float(self.client.get_account(self.usd_account)['available'])
 
     def get_product_order_book(self, product = 'BTC-USD'):
         return self.client.get_product_order_book(product)
@@ -99,7 +99,7 @@ class Gdax:
                 type = 'market')
 
     def buy_bitcoin(self, size = 0, price = 0):
-        usd = round(self.get_current_usd_amount() * .92, 2)
+        usd = round(self.get_current_usd_amount() * .99, 2)
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
         return self.client.buy(funds = str(usd), #USD
@@ -111,41 +111,44 @@ class Gdax:
 
     def start_order_book_poll(self):
         def poll_order_book(gdax):
+            threshold = 0.0075
             order_book = CustomOrderBook(self)
             order_book.start()
             previous_type, previous_amount = BidAskStackType.NEITHER, 0
             while(True):
-                #self.determine_historic_trend()
                 current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()     
                 current_amount = float(order_book.OrderBookCollection.last_amount)
                 if current_type != BidAskStackType.NEITHER and previous_type != current_type:
-                    if previous_amount != 0:
-                        if previous_amount != current_amount:
-                            if current_type == BidAskStackType.STACKED_ASK:
-                                if 1 - (previous_amount / current_amount) > 0.005:
-                                    #Consider sell
-                                    print('{2} SELL - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (previous_amount / current_amount)))
-                                    # if self.get_current_btc_amount() >= .0001:
-                                    #     response = self.sell_bitcoin('.0001', current_amount)
-                                    #     try:
-                                    #         print('Size: {0:.4f}'.format(response['size']))
-                                    #     except:
-                                    #         print(response)
-                                    previous_amount = current_amount
-                            elif current_type == BidAskStackType.STACKED_BID:
-                                if 1 - (current_amount / previous_amount) > 0.005:
-                                    #Consider buy
-                                    print('{2} BUY - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (current_amount / previous_amount)))
-                                    # if self.get_current_usd_amount() >= .0001 * current_amount:
-                                    #     response = self.buy_bitcoin('.0001', current_amount)
-                                    #     try:
-                                    #         print('Existing USD: {0:.6f} | Specified Buy: {1:.2f}'.format(response['funds'], response['specified_funds']))
-                                    #     except:
-                                    #         print(response)
-                                    previous_amount = current_amount
-                    else:
+                    if previous_amount == 0:
                         previous_amount = current_amount
                         print('Starting amount {0} @ {1}'.format(current_amount, dt.datetime.now()))
+                        pass
+                    if previous_amount == current_amount:
+                        pass
+                    time.sleep(6) #Make sure it wasn't a random push that got balanced out within n seconds to ruin the trend
+                    current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()  
+                    if current_type == BidAskStackType.STACKED_ASK:
+                        if 1 - (previous_amount / current_amount) > threshold:
+                            #Consider sell
+                            print('{2} SELL - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (previous_amount / current_amount)))
+                            if self.get_current_btc_amount() >= .0001:
+                                response = self.sell_bitcoin('.0001', current_amount)
+                                try:
+                                    print('Size: {0:.4f}'.format(response['size']))
+                                except:
+                                    print(response)
+                            previous_amount = current_amount
+                    elif current_type == BidAskStackType.STACKED_BID:
+                        if 1 - (current_amount / previous_amount) > threshold:
+                            #Consider buy
+                            print('{2} BUY - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (current_amount / previous_amount)))
+                            if self.get_current_usd_amount() >= .0001 * current_amount:
+                                response = self.buy_bitcoin('.0001', current_amount)
+                                try:
+                                    print('Existing USD: {0:.6f} | Specified Buy: {1:.2f}'.format(response['funds'], response['specified_funds']))
+                                except:
+                                    print(response)
+                            previous_amount = current_amount                        
                 time.sleep(1)
             order_book.close()
         t = threading.Thread(args=(self,), target=poll_order_book)

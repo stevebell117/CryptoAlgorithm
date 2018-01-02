@@ -89,6 +89,7 @@ class GdaxHistoric():
 
     def determine_change_type(self, opening, close):
         percent_to_compare= .00025
+        difference_in_period = close - opening
         if difference_in_period == 0:
             return ChangeType.NO_CHANGE
         elif difference_in_period > 0 and difference_in_period / opening < percent_to_compare:
@@ -154,6 +155,17 @@ class GdaxOrderBookInfoCollection():
             return BidAskStackType.STACKED_BID
         return BidAskStackType.NEITHER
 
+    # def determine_if_rise_or_fall_trend(self):
+    #     last_minute_trend = TrendType.NEUTRAL
+    #     for historic in self.OrderBookCollection.historics.historics[-7:]:
+    #         change_type = historic.change_type
+    #         if change_type == ChangeType.NO_CHANGE:
+    #             pass
+    #         if change_type == ChangeType.FALL 
+            
+    #         if change_type == ChangeType.SHARP_FALL:
+    #             if last_minute_trend != ChangeType.SHARP_FALL:
+
 class ChangeType(Enum):
     NO_CHANGE = 0
     RISE = 1
@@ -165,3 +177,10 @@ class BidAskStackType(Enum):
     NEITHER = 0
     STACKED_BID = 1
     STACKED_ASK = 2
+
+class TrendType(Enum):
+    NEUTRAL = 0
+    RISE = 1
+    POTENTIAL_RISE = 2
+    FALL = 3
+    POTENTIAL_FALL = 4
