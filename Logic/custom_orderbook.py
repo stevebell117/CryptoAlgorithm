@@ -38,7 +38,7 @@ class CustomOrderBook(OrderBook):
                 self._bid_depth = bid_depth
                 self._ask_depth = ask_depth
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
-                self.OrderBookCollection.last_amount = ask
+                self.OrderBookCollection.last_amount = bid
                 self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))

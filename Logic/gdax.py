@@ -12,6 +12,7 @@ import threading
 import time
 import gdax as gdax_lib
 import inspect
+from Logic.algorithm import Algorithm
 
 class Gdax:
     def __init__(self, config):
@@ -20,7 +21,7 @@ class Gdax:
         self.ticker = GdaxTicker()
         self.trades = GdaxTrades()
         self.historics = GdaxHistoric()
-        self.trend = ChangeType.NO_CHANGE
+        self.current_trend = ChangeType.NO_CHANGE
         self.btc_account = config['DEFAULT']['btc_account']
         self.usd_account = config['DEFAULT']['usd_account']
     
@@ -53,7 +54,7 @@ class Gdax:
             while(True):
                 ticker_info = gdax.get_product_ticker()
                 gdax.ticker.add_row_to_ticker(ticker_info)
-                time.sleep(.5)
+                time.sleep(.05)
         t = threading.Thread(args=(self,), target=poll_ticker_update)
         t.daemon = True
         t.start()
@@ -63,7 +64,7 @@ class Gdax:
             while(True):
                 trades_info = gdax.get_product_trades()
                 gdax.trades.add_rows_to_trades(trades_info)
-                time.sleep(.5)
+                time.sleep(.05)
         t = threading.Thread(args=(self,), target=poll_trades_update)
         t.daemon = True
         t.start()
@@ -106,50 +107,14 @@ class Gdax:
             product_id = 'BTC-USD',
             type = 'market')
 
-    def get_orders(self, gdax_client):
-        return gdax_client.get_orders()        
+    def get_orders(self):
+        return self.client.get_orders()        
 
     def start_order_book_poll(self):
         def poll_order_book(gdax):
-            threshold = 0.0075
-            order_book = CustomOrderBook(self)
+            order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
-            previous_type, previous_amount = BidAskStackType.NEITHER, 0
-            while(True):
-                current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()     
-                current_amount = float(order_book.OrderBookCollection.last_amount)
-                if current_type != BidAskStackType.NEITHER and previous_type != current_type:
-                    if previous_amount == 0:
-                        previous_amount = current_amount
-                        print('Starting amount {0} @ {1}'.format(current_amount, dt.datetime.now()))
-                        pass
-                    if previous_amount == current_amount:
-                        pass
-                    time.sleep(6) #Make sure it wasn't a random push that got balanced out within n seconds to ruin the trend
-                    current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked()  
-                    if current_type == BidAskStackType.STACKED_ASK:
-                        if 1 - (previous_amount / current_amount) > threshold:
-                            #Consider sell
-                            print('{2} SELL - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (previous_amount / current_amount)))
-                            if self.get_current_btc_amount() >= .0001:
-                                response = self.sell_bitcoin('.0001', current_amount)
-                                try:
-                                    print('Size: {0:.4f}'.format(response['size']))
-                                except:
-                                    print(response)
-                            previous_amount = current_amount
-                    elif current_type == BidAskStackType.STACKED_BID:
-                        if 1 - (current_amount / previous_amount) > threshold:
-                            #Consider buy
-                            print('{2} BUY - Current: {0} | Previous: {1} | Division: {3}'.format(current_amount, previous_amount, dt.datetime.now(), 1 - (current_amount / previous_amount)))
-                            if self.get_current_usd_amount() >= .0001 * current_amount:
-                                response = self.buy_bitcoin('.0001', current_amount)
-                                try:
-                                    print('Existing USD: {0:.6f} | Specified Buy: {1:.2f}'.format(response['funds'], response['specified_funds']))
-                                except:
-                                    print(response)
-                            previous_amount = current_amount                        
-                time.sleep(1)
+            algorithm.gdax_main(order_book, gdax)
             order_book.close()
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True

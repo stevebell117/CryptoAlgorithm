@@ -77,7 +77,6 @@ class GdaxHistoric():
             historic = self.historics[-1]
             if historic.time.minute == time.minute:
                 historic.close = bid
-                historic.change_type = self.determine_change_type(historic.open, historic.close)
             else:
                 new_historic = GdaxHistoricRow()
                 new_historic.populate_historic_row(bid, ask, dt.datetime.now())
@@ -87,7 +86,22 @@ class GdaxHistoric():
             new_historic.populate_historic_row(bid, ask, dt.datetime.now())
             self.historics.append(new_historic)
 
-    def determine_change_type(self, opening, close):
+class GdaxHistoricRow:
+    def __init__(self):
+        self.low = 0
+        self.high = 0
+        self.time = datetime.now()
+        self.open = 0
+        self.close = 0
+        self.volume = 0
+
+    def populate_historic_row(self, bid, ask, time):
+        self.open = ask
+        self.close = ask
+        self.low = bid
+        self.high = ask
+
+    def determine_and_get_change_type(self, opening, close):
         percent_to_compare= .00025
         difference_in_period = close - opening
         if difference_in_period == 0:
@@ -101,22 +115,7 @@ class GdaxHistoric():
         elif difference_in_period < 0 and difference_in_period / opening >= percent_to_compare:
             return ChangeType.SHARP_FALL
         return ChangeType.NO_CHANGE
-
-class GdaxHistoricRow:
-    def __init__(self):
-        self.low = 0
-        self.high = 0
-        self.time = datetime.now()
-        self.open = 0
-        self.close = 0
-        self.volume = 0
-        self.change_type = ChangeType.NO_CHANGE
-
-    def populate_historic_row(self, bid, ask, time):
-        self.open = ask
-        self.close = ask
-        self.low = bid
-        self.high = ask
+        
 
 class GdaxOrderBookInfoCollection():
     def __init__(self):
@@ -154,17 +153,6 @@ class GdaxOrderBookInfoCollection():
         elif last_bid_depth >= 12:
             return BidAskStackType.STACKED_BID
         return BidAskStackType.NEITHER
-
-    # def determine_if_rise_or_fall_trend(self):
-    #     last_minute_trend = TrendType.NEUTRAL
-    #     for historic in self.OrderBookCollection.historics.historics[-7:]:
-    #         change_type = historic.change_type
-    #         if change_type == ChangeType.NO_CHANGE:
-    #             pass
-    #         if change_type == ChangeType.FALL 
-            
-    #         if change_type == ChangeType.SHARP_FALL:
-    #             if last_minute_trend != ChangeType.SHARP_FALL:
 
 class ChangeType(Enum):
     NO_CHANGE = 0
