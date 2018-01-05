@@ -5,6 +5,7 @@ from Logic.gdax import Gdax
 from gdax.order_book import OrderBook
 import inspect
 import time
+import traceback
 
 def main():
     config = ConfigParser()
@@ -21,7 +22,7 @@ def main():
                 gdax.stop_all_polls()
                 break
     except Exception as e:
-        print(e)
+        print(traceback.format_exc())
     finally:
         gdax.stop_all_polls()
 

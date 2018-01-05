@@ -59,6 +59,15 @@ class Gdax:
         t.daemon = True
         t.start()
 
+    def start_trading(self, order_book, algorithm):
+        def poll_trading(order_book, algorithm, gdax):
+            while(True):
+                algorithm.gdax_main(order_book, gdax)
+                time.sleep(.2)
+        t = threading.Thread(args=(order_book,algorithm,self,), target=poll_trading)
+        t.daemon = True
+        t.start()
+
     def start_trades_update(self):
         def poll_trades_update(gdax):
             while(True):
@@ -114,8 +123,13 @@ class Gdax:
         def poll_order_book(gdax):
             order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
-            algorithm.gdax_main(order_book, gdax)
-            order_book.close()
+            self.start_trading(order_book, algorithm)
+            try:
+                while True:
+                    algorithm.process_order_book(order_book)
+                    time.sleep(.15)
+            except KeyboardInterrupt:
+                order_book.close()     
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
-        t.start()       
+        t.start()  

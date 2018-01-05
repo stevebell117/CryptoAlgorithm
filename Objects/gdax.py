@@ -84,7 +84,7 @@ class GdaxHistoric():
         else:
             new_historic = GdaxHistoricRow()
             new_historic.populate_historic_row(bid, ask, dt.datetime.now())
-            self.historics.append(new_historic)
+            self.historics.append(new_historic)        
 
 class GdaxHistoricRow:
     def __init__(self):
@@ -101,6 +101,10 @@ class GdaxHistoricRow:
         self.low = bid
         self.high = ask
 
+    def populate_historic_row_from_history(self, opening, close):
+        self.open = opening
+        self.close = close
+
     def determine_and_get_change_type(self, opening, close):
         percent_to_compare= .00025
         difference_in_period = close - opening
@@ -114,8 +118,7 @@ class GdaxHistoricRow:
             return ChangeType.FALL
         elif difference_in_period < 0 and difference_in_period / opening >= percent_to_compare:
             return ChangeType.SHARP_FALL
-        return ChangeType.NO_CHANGE
-        
+        return ChangeType.NO_CHANGE 
 
 class GdaxOrderBookInfoCollection():
     def __init__(self):

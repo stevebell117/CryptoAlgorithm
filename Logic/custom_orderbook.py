@@ -1,6 +1,7 @@
 from gdax.order_book import OrderBook
 from Objects.gdax import GdaxOrderBookInfoCollection
 from Objects.gdax import GdaxHistoric
+from Logic.algorithm import Algorithm
 import datetime as dt
 import sys
 import copy
@@ -15,6 +16,7 @@ class CustomOrderBook(OrderBook):
         self._ask_depth = None
         self.OrderBookCollection = GdaxOrderBookInfoCollection()
         self.historics = GdaxHistoric()
+        self.Algorithm = Algorithm()
         self.gdax = gdax_object
 
     def on_message(self, message):
