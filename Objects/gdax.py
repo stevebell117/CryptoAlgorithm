@@ -142,7 +142,7 @@ class GdaxOrderBookInfoCollection():
         last_bid_depth = 0
         last_ask_depth = 0
         if len(self.OrderBookCollection) < 25:
-            pass
+            return BidAskStackType.NEITHER
         else:
             for order_info in self.OrderBookCollection[-25:]:
                 if order_info._bid_depth < 3 and order_info._ask_depth < 3:

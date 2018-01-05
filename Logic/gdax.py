@@ -105,16 +105,20 @@ class Gdax:
 
     def sell_bitcoin(self, size = 0, price = 0):
         return self.client.sell(size = str(size), #USD
+                price = str(price + .01),
                 product_id = 'BTC-USD',
-                type = 'market')
+                time_in_force = 'GTT',
+                cancel_after = 'min')
 
     def buy_bitcoin(self, size = 0, price = 0):
         usd = round(self.get_current_usd_amount() * .99, 2)
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
-        return self.client.buy(funds = str(usd), #USD
+        return self.client.buy(size = str(size), #USD
+            price = str(price - .01),
             product_id = 'BTC-USD',
-            type = 'market')
+            time_in_force = 'GTT',
+            cancel_after = 'min')
 
     def get_orders(self):
         return self.client.get_orders()        
@@ -124,11 +128,12 @@ class Gdax:
             order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
             self.start_trading(order_book, algorithm)
+            algorithm.poll_print_for_console(order_book)
             try:
                 while True:
                     algorithm.process_order_book(order_book)
                     time.sleep(.15)
-            except KeyboardInterrupt:
+            except KeyboardInterrupt:2
                 order_book.close()     
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
