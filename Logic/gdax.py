@@ -103,22 +103,36 @@ class Gdax:
         for x in sorted(temp, key=lambda x_key: x_key['time']):
             print(x)
 
-    def sell_bitcoin(self, size = 0, price = 0):
-        return self.client.sell(size = str(size), #USD
-                price = str(price + .01),
+    def sell_bitcoin_limit(self, size = 0, price = 0):
+        return self.client.sell(size = str(size),
+                price = str(price), #USD
                 product_id = 'BTC-USD',
                 time_in_force = 'GTT',
                 cancel_after = 'min')
 
-    def buy_bitcoin(self, size = 0, price = 0):
+    def sell_bitcoin_market(self, size = 0):
+        return self.client.sell(size = str(size),
+                product_id = 'BTC-USD',
+                type = 'market')
+
+    def buy_bitcoin_limit(self, size = 0, price = 0):
         usd = round(self.get_current_usd_amount() * .99, 2)
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
-        return self.client.buy(size = str(size), #USD
-            price = str(price - .01),
+        return self.client.buy(size = str(size),
+            price = str(price), #USD
             product_id = 'BTC-USD',
             time_in_force = 'GTT',
             cancel_after = 'min')
+
+    def buy_bitcoin_market(self, price = 0):
+        usd = round(self.get_current_usd_amount() * .99, 2)
+        actual_size = round(usd / price, 4)
+        if actual_size >= .0001:
+            fund = price * .0001
+            return self.client.buy(funds = str(fund), #USD
+                product_id = 'BTC-USD',
+                type = 'market')
 
     def get_orders(self):
         return self.client.get_orders()        
@@ -128,12 +142,13 @@ class Gdax:
             order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
             self.start_trading(order_book, algorithm)
-            algorithm.poll_print_for_console(order_book)
+            algorithm.poll_print_for_console(order_book, self)
             try:
                 while True:
                     algorithm.process_order_book(order_book)
-                    time.sleep(.15)
-            except KeyboardInterrupt:2
+                    order_book.get_nearest_wall_distances()
+                    time.sleep(.3)
+            except KeyboardInterrupt:
                 order_book.close()     
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True

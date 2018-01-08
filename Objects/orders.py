@@ -2,8 +2,9 @@ import datetime as dt
 from enum import Enum
 
 class Order(object):
-    def __init__(self, order_id, side = 'sell', size = 0, time = dt.datetime.now()):
+    def __init__(self, order_id, side = 'sell', size = 0, time = dt.datetime.now(), price = 0):
         self.side = side
+        self.price = price
         self.size = size
         self.time = time
         self.order_id = order_id

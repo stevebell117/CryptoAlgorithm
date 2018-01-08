@@ -6,6 +6,7 @@ from Objects.orders import Orders
 from itertools import groupby
 from operator import itemgetter
 from Objects.orders import Order
+from enum import Enum
 import datetime as dt
 import sys
 import copy
@@ -48,7 +49,6 @@ class CustomOrderBook(OrderBook):
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
                 self.OrderBookCollection.last_amount = bid
                 self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
-                self.get_nearest_wall_distances()
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
         except:
@@ -56,23 +56,45 @@ class CustomOrderBook(OrderBook):
     
     def get_nearest_wall_distances(self):
         def get_index_of_bid_wall(current_book):
-            first = itemgetter(0)
-            second = itemgetter(1)
+            first, second = itemgetter(0), itemgetter(1)
             sorted_asks = [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['asks'], key=first), key=first)]
             if len(sorted_asks) < 15:
-                return {}
+                return {"bid_index": -1, "bid_value": 0, "bid_amount": 0}
             slice_sorted_asks = sorted_asks[:15]
             value = max(slice_sorted_asks, key=second)
-            return {"bid_index":slice_sorted_asks.index(value), "bid_value":value[1]}
+            return {"bid_index":slice_sorted_asks.index(value), "bid_value":value[1], "bid_amount": value[0]}
         def get_index_of_ask_wall(current_book):
-            first = itemgetter(0)
-            second = itemgetter(1)
+            first, second = itemgetter(0), itemgetter(1)
             sorted_bids = [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['bids'], key=first), key=first)] 
             if len(sorted_bids) < 15:
-                return {}
+                return {"ask_index": -1, "ask_value": 0, "ask_amount": 0}
             slice_sorted_bids = sorted_bids[-15:]
             value = max(slice_sorted_bids, key=second)
-            return {"ask_index":abs(slice_sorted_bids.index(value) - 14), "ask_value":value[1]}
+            return {"ask_index":abs(slice_sorted_bids.index(value) - 14), "ask_value":value[1], "ask_amount": value[0]}
         current_book = self.get_current_book()
         index_walls = {**get_index_of_bid_wall(current_book), **get_index_of_ask_wall(current_book)}
         self.index_walls = index_walls
+
+    def determine_if_wall_is_coming(self):
+        if len(self.index_walls) > 0:
+            ask_index = float(self.index_walls["ask_index"])
+            ask_value = float(self.index_walls["ask_value"])
+            ask_amount = float(self.index_walls["ask_amount"])
+            bid_index = float(self.index_walls["bid_index"])
+            bid_value = float(self.index_walls["bid_value"])
+            bid_amount = float(self.index_walls["bid_amount"])
+            #print('ask_i : {0} | ask_v : {1} | bid_i : {2} | bid_v : {3}'.format(ask_index, ask_value, bid_index, bid_value))
+            if (ask_index - 4 <= bid_index <= ask_index + 4 and 
+            bid_index - 4 <= ask_index <= bid_index + 4 and
+            ask_value - 7 <= bid_value <= ask_value + 7 and 
+            bid_value - 7 <= ask_value <= bid_value + 7):
+                return {'side': '', 'amount': 0}
+            if (ask_index > 4 and ask_value > 14
+               and bid_index < 4 and bid_value < 14):
+                return {'side': 'sell', 'amount': ask_amount}
+            if (bid_index > 4 and bid_value > 14
+               and ask_index < 4 and ask_value < 14):
+                return {'side': 'buy', 'amount': bid_amount}
+            return {'side': '', 'amount': 0}
+        else:
+            return {'side': '', 'amount': 0} 

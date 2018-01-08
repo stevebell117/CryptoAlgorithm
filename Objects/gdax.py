@@ -138,13 +138,14 @@ class GdaxOrderBookInfoCollection():
             self.OrderBookCollection.pop(0)
         self.OrderBookCollection.append(new_row)
 
-    def determine_if_sell_or_buy_bids_are_stacked(self):
+    def determine_if_sell_or_buy_bids_are_stacked(self, order_book):
         last_bid_depth = 0
         last_ask_depth = 0
-        if len(self.OrderBookCollection) < 25:
+        current_book = order_book.get_current_book()
+        if len(current_book) < 25:
             return BidAskStackType.NEITHER
         else:
-            for order_info in self.OrderBookCollection[-25:]:
+            for order_info in current_book[-25:]:
                 if order_info._bid_depth < 3 and order_info._ask_depth < 3:
                     break #nothing to do here, get out and retry on next cycle
                 elif order_info._bid_depth > 3 and order_info._ask_depth < 3 and last_ask_depth == 0:
