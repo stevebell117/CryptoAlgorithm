@@ -26,6 +26,17 @@ class CustomOrderBook(OrderBook):
         self.Orders = Orders()
         self.index_walls = dict()
 
+    def on_error(self, error):
+        try:
+            super(CustomOrderBook, self).on_error(error)
+
+            try:
+                self.close()
+            finally:
+                self.start()
+        except:
+            print('EXCEPTION IN ON_ERROR: {0}'.format(sys.exc_info()[0]))
+
     def on_message(self, message):
         try:
             super(CustomOrderBook, self).on_message(message)
@@ -46,6 +57,8 @@ class CustomOrderBook(OrderBook):
                 self._ask = ask
                 self._bid_depth = bid_depth
                 self._ask_depth = ask_depth
+                if len(self.OrderBookCollection.OrderBookCollection) > 200:
+                    self.OrderBookCollection.OrderBookCollection.pop(0)
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
                 self.OrderBookCollection.last_amount = bid
                 self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
@@ -54,7 +67,7 @@ class CustomOrderBook(OrderBook):
         except:
             print('EXCEPTION IN ON_MESSAGE: {0}'.format(sys.exc_info()[0]))
     
-    def get_nearest_wall_distances(self):
+    def get_nearest_wall_distances(self): #bids and asks are backwards, I really need to fix it...
         def get_index_of_bid_wall(current_book):
             first, second = itemgetter(0), itemgetter(1)
             sorted_asks = [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['asks'], key=first), key=first)]
@@ -75,7 +88,7 @@ class CustomOrderBook(OrderBook):
         index_walls = {**get_index_of_bid_wall(current_book), **get_index_of_ask_wall(current_book)}
         self.index_walls = index_walls
 
-    def determine_if_wall_is_coming(self):
+    def determine_if_wall_is_coming(self, current_amount):
         if len(self.index_walls) > 0:
             ask_index = float(self.index_walls["ask_index"])
             ask_value = float(self.index_walls["ask_value"])
@@ -83,18 +96,22 @@ class CustomOrderBook(OrderBook):
             bid_index = float(self.index_walls["bid_index"])
             bid_value = float(self.index_walls["bid_value"])
             bid_amount = float(self.index_walls["bid_amount"])
-            #print('ask_i : {0} | ask_v : {1} | bid_i : {2} | bid_v : {3}'.format(ask_index, ask_value, bid_index, bid_value))
-            if (ask_index - 4 <= bid_index <= ask_index + 4 and 
-            bid_index - 4 <= ask_index <= bid_index + 4 and
-            ask_value - 7 <= bid_value <= ask_value + 7 and 
-            bid_value - 7 <= ask_value <= bid_value + 7):
+            # if ((ask_index > 4 and ask_value > 14 and bid_index < 4 and bid_value < 14) or bid_index > 4 and bid_value > 14 and ask_index < 4 and ask_value < 14):
+            #     print('ask_i : {0} | ask_v : {1} | askl_a | {2} | bid_i : {3} | bid_v : {4} | bid_a : {5}'.format(ask_index, ask_value, ask_amount, bid_index, bid_value, bid_amount))
+            if ask_index < 2 and bid_index < 2:
                 return {'side': '', 'amount': 0}
-            if (ask_index > 4 and ask_value > 14
+            elif (  ask_index - 4 <= bid_index <= ask_index + 4 and 
+                    bid_index - 4 <= ask_index <= bid_index + 4 and
+                    ask_value - 7 <= bid_value <= ask_value + 7 and 
+                    bid_value - 7 <= ask_value <= bid_value + 7 and
+                    bid_amount > current_amount - 100 and ask_amount < current_amount + 100):
+                return {'side': '', 'amount': 0}
+            elif (ask_index > 4 and ask_value > 14
                and bid_index < 4 and bid_value < 14):
-                return {'side': 'sell', 'amount': ask_amount}
-            if (bid_index > 4 and bid_value > 14
+                return {'side': 'buy', 'amount': ask_amount}
+            elif (bid_index > 4 and bid_value > 14
                and ask_index < 4 and ask_value < 14):
-                return {'side': 'buy', 'amount': bid_amount}
+                return {'side': 'sell', 'amount': bid_amount}
             return {'side': '', 'amount': 0}
         else:
             return {'side': '', 'amount': 0} 

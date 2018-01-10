@@ -108,7 +108,8 @@ class Gdax:
                 price = str(price), #USD
                 product_id = 'BTC-USD',
                 time_in_force = 'GTT',
-                cancel_after = 'min')
+                cancel_after = 'min',
+                post_only = True)
 
     def sell_bitcoin_market(self, size = 0):
         return self.client.sell(size = str(size),
@@ -123,7 +124,8 @@ class Gdax:
             price = str(price), #USD
             product_id = 'BTC-USD',
             time_in_force = 'GTT',
-            cancel_after = 'min')
+            cancel_after = 'min',
+            post_only = True)
 
     def buy_bitcoin_market(self, price = 0):
         usd = round(self.get_current_usd_amount() * .99, 2)
@@ -143,6 +145,7 @@ class Gdax:
             order_book.start()
             self.start_trading(order_book, algorithm)
             algorithm.poll_print_for_console(order_book, self)
+            self.start_order_poll(order_book)
             try:
                 while True:
                     algorithm.process_order_book(order_book)
@@ -152,4 +155,20 @@ class Gdax:
                 order_book.close()     
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
-        t.start()  
+        t.start()
+
+    def start_order_poll(self, order_book):
+        def poll_orders(order_book, gdax):
+            while True:
+                try:
+                    for order in order_book.Orders.OrdersList:
+                        order_status = gdax.client.get_order(order.order_id)
+                        print(order_status)
+                        if order_status['status'] == 'done' or order_status['status'] == 'cancelled':
+                            order_book.Orders.update_order(response['id'], status = OrderStatus.CLOSED)
+                    time.sleep(10) 
+                except:
+                    pass 
+        t = threading.Thread(args=(order_book,self,), target=poll_orders)
+        t.daemon = True
+        t.start()    

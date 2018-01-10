@@ -2,11 +2,12 @@ import datetime as dt
 from enum import Enum
 
 class Order(object):
-    def __init__(self, order_id, side = 'sell', size = 0, time = dt.datetime.now(), price = 0):
+    def __init__(self, order_id, side = 'sell', size = 0, time = dt.datetime.now(), price = 0, previous_amount = 0):
         self.side = side
         self.price = price
         self.size = size
         self.time = time
+        self.previous_amount = previous_amount
         self.order_id = order_id
         self.status = OrderStatus.OPEN
 
@@ -28,12 +29,13 @@ class Orders(Order):
 
     def update_order(self, order_id, size = None, status = None):
         index = next(x.order_id == order_id for x in self.OrdersList)
-        order = self.OrdersList[index]
-        if size != None:
-            order.size = size
-        if status != None:
-            order.status = status
-        self.OrdersList[index] = order #This is probably redundant, but I have no clue if Python does pointers...
+        if index >= 0:
+            order = self.OrdersList[index]
+            if size != None:
+                order.size = size
+            if status != None:
+                order.status = status
+            self.OrdersList[index] = order #This is probably redundant, but I have no clue if Python does pointers...
 
     def get_orders(self):
         return self.OrdersList
