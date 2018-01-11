@@ -12,6 +12,7 @@ import threading
 import time
 import gdax as gdax_lib
 import inspect
+import traceback
 from Logic.algorithm import Algorithm
 
 class Gdax:
@@ -164,11 +165,12 @@ class Gdax:
                     for order in order_book.Orders.OrdersList:
                         order_status = gdax.client.get_order(order.order_id)
                         print(order_status)
-                        if order_status['status'] == 'done' or order_status['status'] == 'cancelled':
-                            order_book.Orders.update_order(response['id'], status = OrderStatus.CLOSED)
+                        if 'message' in order_status:
+                            #order_book.Orders.update_order(order_status['id'], done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
+                            order_book.Orders.update_order(order.order_id, status = OrderStatus.CLOSED)
                     time.sleep(10) 
                 except:
-                    pass 
+                    print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
         t = threading.Thread(args=(order_book,self,), target=poll_orders)
         t.daemon = True
         t.start()    

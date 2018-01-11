@@ -7,8 +7,10 @@ from itertools import groupby
 from operator import itemgetter
 from Objects.orders import Order
 from enum import Enum
+import time
 import datetime as dt
 import sys
+import traceback
 import copy
 
 class CustomOrderBook(OrderBook):
@@ -26,16 +28,17 @@ class CustomOrderBook(OrderBook):
         self.Orders = Orders()
         self.index_walls = dict()
 
-    def on_error(self, error):
-        try:
-            super(CustomOrderBook, self).on_error(error)
+    # def on_error(self, error):
+    #     try:
+    #         super(CustomOrderBook, self).on_error(error)
 
-            try:
-                self.close()
-            finally:
-                self.start()
-        except:
-            print('EXCEPTION IN ON_ERROR: {0}'.format(sys.exc_info()[0]))
+    #         try:
+    #             self.close()
+    #             time.sleep(10)
+    #         finally:
+    #             self.start()
+    #     except:
+    #         print('EXCEPTION IN ON_ERROR: {0}'.format(sys.exc_info()[0]))
 
     def on_message(self, message):
         try:
@@ -65,7 +68,7 @@ class CustomOrderBook(OrderBook):
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
         except:
-            print('EXCEPTION IN ON_MESSAGE: {0}'.format(sys.exc_info()[0]))
+            print('EXCEPTION IN ON_MESSAGE: {0}'.format(traceback.format_exc()))
     
     def get_nearest_wall_distances(self): #bids and asks are backwards, I really need to fix it...
         def get_index_of_bid_wall(current_book):
@@ -88,7 +91,7 @@ class CustomOrderBook(OrderBook):
         index_walls = {**get_index_of_bid_wall(current_book), **get_index_of_ask_wall(current_book)}
         self.index_walls = index_walls
 
-    def determine_if_wall_is_coming(self, current_amount):
+    def determine_if_wall_is_coming(self, previous_amount):
         if len(self.index_walls) > 0:
             ask_index = float(self.index_walls["ask_index"])
             ask_value = float(self.index_walls["ask_value"])
@@ -104,7 +107,7 @@ class CustomOrderBook(OrderBook):
                     bid_index - 4 <= ask_index <= bid_index + 4 and
                     ask_value - 7 <= bid_value <= ask_value + 7 and 
                     bid_value - 7 <= ask_value <= bid_value + 7 and
-                    bid_amount > current_amount - 100 and ask_amount < current_amount + 100):
+                    bid_amount > previous_amount - 1000 and ask_amount < previous_amount + 1000):
                 return {'side': '', 'amount': 0}
             elif (ask_index > 4 and ask_value > 14
                and bid_index < 4 and bid_value < 14):

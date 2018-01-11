@@ -141,7 +141,7 @@ class GdaxOrderBookInfoCollection():
     def determine_if_sell_or_buy_bids_are_stacked(self, order_book):
         last_bid_depth = 0
         last_ask_depth = 0
-        current_book = order_book.get_current_book()
+        current_book = self.OrderBookCollection
         if len(current_book) < 25:
             return BidAskStackType.NEITHER
         else:

@@ -12,7 +12,7 @@ import traceback
 import json
 import threading
 
-BUY_SELL_AMOUNT = .0002
+BUY_SELL_AMOUNT = .0001
 
 class Algorithm:
     def __init__(self):
@@ -31,16 +31,14 @@ class Algorithm:
                 first = itemgetter(0)
                 return [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['bids'], key=first), key=first)] 
             current_book = order_book.get_current_book()
-            asks = get_sorted_asks(current_book)
-            bids = get_sorted_bids(current_book)
-            ask_sizes = ([x[1] for x in asks])
-            bid_sizes = ([x[1] for x in bids])
-            bid_sum = sum(bid_sizes[-15:])
-            ask_sum = sum(ask_sizes[:15])
+            asks, bids = get_sorted_asks(current_book), get_sorted_bids(current_book)
+            ask_sizes, bid_sizes = ([x[1] for x in asks]), ([x[1] for x in bids])
+            bid_sum, ask_sum = sum(bid_sizes[-15:]), sum(ask_sizes[:15])
+            #print('ask_sum {0} | bid_sum {1} | {2}'.format(ask_sum, bid_sum, current_type))
             if current_type == BidAskStackType.STACKED_ASK:
-                return ask_sum >= bid_sum * Decimal(1.35)
+                return ask_sum >= bid_sum * Decimal(1.5)
             elif current_type == BidAskStackType.STACKED_BID:
-                return bid_sum >= ask_sum * Decimal(1.35)
+                return bid_sum >= ask_sum * Decimal(1.5)
             return False
         try:
             self.sum_order_book = determine_sum_order_book(order_book, self.current_type)
@@ -49,29 +47,31 @@ class Algorithm:
     
     def gdax_main(self, order_book, gdax):
         try:
-            threshold = 0.01
+            threshold = 0.005
             self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book)         
             current_amount = float(order_book.OrderBookCollection.last_amount)
             if self.previous_amount == 0:
                 self.previous_amount = current_amount
                 if current_amount != 0: print('Starting amount {0} @ {1}'.format(current_amount, dt.datetime.now()))
                 return
-            wall_var = order_book.determine_if_wall_is_coming(current_amount)
+            wall_var = order_book.determine_if_wall_is_coming(self.previous_amount)
             self.check_if_order_complete(order_book)
-            if (self.current_type != BidAskStackType.NEITHER and self.previous_type != self.current_type):
-                if self.sum_order_book is True:
-                    self.previous_type = self.current_type                  
-                    if self.current_type == BidAskStackType.STACKED_ASK:
-                        self.sell_bitcoin_logic_market(current_amount, threshold, gdax, order_book)
-                    elif self.current_type == BidAskStackType.STACKED_BID:
-                        self.buy_bitcoin_logic_market(current_amount, threshold, gdax, order_book)
-            elif wall_var['side'] == 'sell' or wall_var['side'] == 'buy':
-                if dt.datetime.now() > self.last_action + dt.timedelta(seconds=30): #30 second cooldown
-                    if wall_var['side'] == 'sell':
-                        self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, threshold / 2, gdax, order_book)
-                    else:
-                        self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, threshold / 2, gdax, order_book) 
-                    self.last_action = dt.datetime.now()
+            if self.sum_order_book is True:
+                # if (self.current_type != BidAskStackType.NEITHER and self.previous_type != self.current_type):
+                #     self.previous_type = self.current_type                  
+                #     if self.current_type == BidAskStackType.STACKED_ASK:
+                #         self.sell_bitcoin_logic_market(current_amount, threshold, gdax, order_book)
+                #     elif self.current_type == BidAskStackType.STACKED_BID:
+                #         self.buy_bitcoin_logic_market(current_amount, threshold, gdax, order_book)
+                #elif wall_var['side'] == 'sell' or wall_var['side'] == 'buy':
+                if wall_var['side'] == 'sell' or wall_var['side'] == 'buy':
+                    if dt.datetime.now() > self.last_action + dt.timedelta(seconds=30): #30 second cooldown
+                        if wall_var['amount'] - 1000 <= self.previous_amount <= wall_var['amount'] + 1000: #It's stupid I need to do this but the GDAX API is broken.
+                            if wall_var['side'] == 'sell':
+                                self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, threshold, gdax, order_book)
+                            else:
+                                self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, threshold, gdax, order_book) 
+                            self.last_action = dt.datetime.now()
         except:
             print(traceback.format_exc())
 
@@ -83,12 +83,8 @@ class Algorithm:
                 response = gdax.buy_bitcoin_market(str(BUY_SELL_AMOUNT), current_amount)
                 try:
                     print('Specified Buy: {0:.2f}'.format(float(response['price'])))
-                    order = Order(response['id'], response['side'], response['size'], response['created_at'], current_amount, self.previous_amount)
+                    order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
                     order_book.Orders.add_order(order)
-                    #time.sleep(60)
-                    order_status = gdax.client.get_order(order.order_id)
-                    if order_status['status'] == 'done' or order_status['status'] == 'cancelled':
-                        order_book.Orders.update_order(response['id'], status = OrderStatus.CLOSED)
                 except:
                     print(traceback.format_exc())
                     print(response)
@@ -104,12 +100,8 @@ class Algorithm:
                 response = gdax.buy_bitcoin_limit(str(BUY_SELL_AMOUNT), round(current_amount, 2))
                 try:
                     print('Specified Buy: {0:.2f}'.format(float(response['price'])))
-                    order = Order(response['id'], response['side'], response['size'], response['created_at'], current_amount, self.previous_amount)
+                    order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
                     order_book.Orders.add_order(order)
-                    #time.sleep(60)
-                    order_status = gdax.client.get_order(order.order_id)
-                    if order_status['status'] == 'done' or order_status['status'] == 'cancelled':
-                        order_book.Orders.update_order(response['id'], status = OrderStatus.CLOSED)
                 except:
                     print(traceback.format_exc())
                     print(response)
@@ -125,12 +117,8 @@ class Algorithm:
                 response = gdax.sell_bitcoin_market(str(size))
                 try:
                     print('Size: {0:.4f}'.format(float(response['size'])))
-                    order = Order(response['id'], response['side'], response['size'], response['created_at'], current_amount, self.previous_amount)
+                    order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
                     order_book.Orders.add_order(order)
-                    #time.sleep(60)
-                    order_status = gdax.client.get_order(order.order_id)
-                    if order_status['status'] == 'done' or order_status['status'] == 'cancelled':
-                        order_book.Orders.update_order(response['id'], status = OrderStatus.CLOSED)
                 except:
                     print(traceback.format_exc())
                     print(response)
@@ -146,7 +134,7 @@ class Algorithm:
                 response = gdax.sell_bitcoin_limit(str(size), round(current_amount, 2))
                 try:
                     print('Size: {0:.4f}'.format(float(response['size'])))
-                    order = Order(response['id'], response['side'], response['size'], response['created_at'], current_amount, self.previous_amount)
+                    order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
                     order_book.Orders.add_order(order)                    
                 except:
                     print(traceback.format_exc())
@@ -162,7 +150,7 @@ class Algorithm:
                     if self.previous_amount != 0:
                         current_btc_bal = gdax.get_current_btc_amount()
                         last_amount = float(order_book.OrderBookCollection.last_amount)
-                        print('{4} *************\n  Current USD: {0:.2f} \n  Current BTC Balance: {1:.8f} \n  Current Value {5:.2f} \n  Current BTC Cost: {2:.3f} \n  Previous BTC Cost: {3:.3f} \n  Division: {6:.4f}'
+                        print('{4} *************\n  Current USD: {0:.2f} \n  Current BTC Balance: {1:.8f} \n  Current BTC Value {5:.2f} \n  Current BTC Cost: {2:.3f} \n  Previous BTC Cost: {3:.3f} \n  Division: {6:.4f}'
                             .format(gdax.get_current_usd_amount(), current_btc_bal, last_amount + .005, float(self.previous_amount), dt.datetime.now(),
                                     current_btc_bal * last_amount, 1 - (float(self.previous_amount) / last_amount)))
                         if any(order_book.Orders.OrdersList):
@@ -181,5 +169,6 @@ class Algorithm:
 
     def check_if_order_complete(self, order_book):
         for order in order_book.Orders.OrdersList[::-1]:
-            if dt.datetime.now() + dt.timedelta(seconds=60) >= self.time and order.status != OrderStatus.CLOSED:
+            if dt.datetime.now() >= order.time + dt.timedelta(seconds=70) and order.status != OrderStatus.CLOSED:
                 self.previous_amount = order.previous_amount
+                return
