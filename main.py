@@ -2,7 +2,7 @@ from configparser import ConfigParser
 import sys
 import json
 from Logic.gdax import Gdax
-from gdax.order_book import OrderBook
+from gdax_lib.order_book import OrderBook
 import inspect
 import time
 import traceback

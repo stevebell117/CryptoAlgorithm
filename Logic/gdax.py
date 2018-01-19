@@ -1,4 +1,4 @@
-from gdax import AuthenticatedClient
+from gdax_lib import AuthenticatedClient
 from Objects.gdax import GdaxTicker
 from Objects.gdax import GdaxTrades 
 from Objects.gdax import GdaxHistoric
@@ -6,7 +6,7 @@ from Objects.gdax import BidAskStackType
 from Objects.gdax import ChangeType
 from Logic.custom_orderbook import CustomOrderBook
 import sys
-from gdax.order_book import OrderBook
+from gdax_lib.order_book import OrderBook
 import datetime as dt
 import threading
 import time
@@ -14,6 +14,7 @@ import gdax as gdax_lib
 import inspect
 import traceback
 from Logic.algorithm import Algorithm
+from Objects.orders import OrderStatus
 
 class Gdax:
     def __init__(self, config):
@@ -32,6 +33,9 @@ class Gdax:
     def get_current_usd_amount(self):
         return float(self.client.get_account(self.usd_account)['available'])
 
+    def get_fills(self, order_id):
+        return self.client.get_fills(order_id=order_id)
+    
     def get_product_order_book(self, product = 'BTC-USD'):
         return self.client.get_product_order_book(product)
 
@@ -118,7 +122,7 @@ class Gdax:
                 type = 'market')
 
     def buy_bitcoin_limit(self, size = 0, price = 0):
-        usd = round(self.get_current_usd_amount() * .99, 2)
+        usd = round(self.get_current_usd_amount(), 2)
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
         return self.client.buy(size = str(size),
@@ -129,11 +133,11 @@ class Gdax:
             post_only = True)
 
     def buy_bitcoin_market(self, price = 0):
-        usd = round(self.get_current_usd_amount() * .99, 2)
+        usd = round(self.get_current_usd_amount(), 2)
         actual_size = round(usd / price, 4)
         if actual_size >= .0001:
             fund = price * .0001
-            return self.client.buy(funds = str(fund), #USD
+            return self.client.buy(funds = str(round(fund, 2)), #USD
                 product_id = 'BTC-USD',
                 type = 'market')
 
@@ -164,10 +168,10 @@ class Gdax:
                 try:
                     for order in order_book.Orders.OrdersList:
                         order_status = gdax.client.get_order(order.order_id)
-                        print(order_status)
-                        if 'message' in order_status:
-                            #order_book.Orders.update_order(order_status['id'], done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
-                            order_book.Orders.update_order(order.order_id, status = OrderStatus.CLOSED)
+                        if 'message' in order_status or order_status['status'] == 'cancelled':
+                            order_book.Orders.update_order(order.order_id, status = OrderStatus.CANCELLED)
+                        elif order_status['status'] == 'done':
+                            order_book.Orders.update_order(order.order_id, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
                     time.sleep(10) 
                 except:
                     print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 

@@ -1,4 +1,4 @@
-from gdax.order_book import OrderBook
+from gdax_lib.order_book import OrderBook
 from Objects.gdax import GdaxOrderBookInfoCollection
 from Objects.gdax import GdaxHistoric
 from Logic.algorithm import Algorithm
@@ -63,7 +63,6 @@ class CustomOrderBook(OrderBook):
                 if len(self.OrderBookCollection.OrderBookCollection) > 200:
                     self.OrderBookCollection.OrderBookCollection.pop(0)
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
-                self.OrderBookCollection.last_amount = bid
                 self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
@@ -106,8 +105,8 @@ class CustomOrderBook(OrderBook):
             elif (  ask_index - 4 <= bid_index <= ask_index + 4 and 
                     bid_index - 4 <= ask_index <= bid_index + 4 and
                     ask_value - 7 <= bid_value <= ask_value + 7 and 
-                    bid_value - 7 <= ask_value <= bid_value + 7 and
-                    bid_amount > previous_amount - 1000 and ask_amount < previous_amount + 1000):
+                    bid_value - 7 <= ask_value <= bid_value + 7): #and
+                    #bid_amount > previous_amount - 400 and ask_amount < previous_amount + 400):
                 return {'side': '', 'amount': 0}
             elif (ask_index > 4 and ask_value > 14
                and bid_index < 4 and bid_value < 14):

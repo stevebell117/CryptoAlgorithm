@@ -22,18 +22,16 @@ class Orders(Order):
 
     def remove_order(self, order_id = None, order = None):
         if order_id != None:
-            index = next(x.order_id == order_id for x in self.OrdersList)
-            self.OrdersList.pop(index)
+            order_found = next(x.order_id == order_id for x in self.OrdersList)
+            self.OrdersList.remove(order_found)
         elif order != None:
             self.OrdersList.remove(order)
         else:
             print('An order must be entered. Order removal failed @ {0}'.format(dt.datetime.now()))
 
     def update_order(self, order_id, size = None, status = None, done_reason = None, fill_fees = None):
-        index = next(x.order_id == order_id for x in self.OrdersList)
-        print('Index {0}'.format(index))
-        if index >= 0:
-            order = self.OrdersList[index]
+        order = next(x for x in self.OrdersList if x.order_id == order_id)
+        if order != None:
             if size != None:
                 order.size = size
             if status != None:
@@ -42,16 +40,16 @@ class Orders(Order):
                 order.done_reason = done_reason
             if fill_fees != None:
                 order.fill_fees = fill_fees
-            self.OrdersList[index] = order #This is probably redundant, but I have no clue if Python does pointers...
 
     def get_orders(self):
         return self.OrdersList
 
     def get_order_by_id(self, order_id):
-        index = next(x.order_id == order_id for x in self.OrdersList)
-        return self.OrdersList[index]
+        order = next(x for x in self.OrdersList if x.order_id == order_id)
+        return order
 
 class OrderStatus(Enum):
     OPEN = 0
     CLOSED = 1
     FILLED = 2
+    CANCELLED = 3
