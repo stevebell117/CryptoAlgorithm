@@ -149,7 +149,6 @@ class Gdax:
             order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
             self.start_trading(order_book, algorithm)
-            algorithm.poll_print_for_console(order_book, self)
             self.start_order_poll(order_book)
             try:
                 while True:

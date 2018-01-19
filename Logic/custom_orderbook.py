@@ -7,6 +7,7 @@ from itertools import groupby
 from operator import itemgetter
 from Objects.orders import Order
 from enum import Enum
+from Objects.log import Logs
 import time
 import datetime as dt
 import sys
@@ -26,6 +27,7 @@ class CustomOrderBook(OrderBook):
         self.Algorithm = Algorithm()
         self.gdax = gdax_object
         self.Orders = Orders()
+        self.Logs = Logs()
         self.index_walls = dict()
 
     # def on_error(self, error):
