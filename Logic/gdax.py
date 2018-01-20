@@ -45,8 +45,15 @@ class Gdax:
     def get_product_trades(self, product = 'BTC-USD'):
         return self.client.get_product_trades(product) 
 
-    def get_product_historic_rates(self, product = 'BTC-USD', granularity = 60):
-        return self.client.get_product_historic_rates(product, granularity = granularity)
+    def get_product_historic_rates(self, product = 'BTC-USD', granularity = 60, start = None, end = None):
+        if start is not None and end is not None:
+            return self.client.get_product_historic_rates(product, granularity=granularity, start=start, end=end)
+        elif start is not None:
+            return self.client.get_product_historic_rates(product, granularity=granularity, start=start)
+        elif end is not None:
+            return self.client.get_product_historic_rates(product, granularity=granularity, end=end)
+        else:
+            return self.client.get_product_historic_rates(product, granularity=granularity)
 
     def get_product_24hr_stats(self, product = 'BTC-USD'):
         return self.client.get_product_24hr_stats(product)
@@ -85,10 +92,18 @@ class Gdax:
 
     def start_historics_update(self):
         def poll_historics_update(gdax):
+            first_run = True
             while(True):
-                historic_info = gdax.get_product_historic_rates()
+                if first_run == True:
+                    historic_info = gdax.get_product_historic_rates()
+                    #first_run = False
+                else:
+                    #TODO: This is borked, figure it out later
+                    print((dt.datetime.now() - dt.timedelta(minutes=5)).isoformat())
+                    historic_info = gdax.get_product_historic_rates(start=(dt.datetime.now() - dt.timedelta(minutes=5)).isoformat(), end=dt.datetime.now().isoformat())
                 gdax.historics.add_rows_to_history(historic_info)
-                time.sleep(15)
+                gdax.print_historics_sorted()
+                time.sleep(45)
         t = threading.Thread(args=(self,), target=poll_historics_update)
         t.daemon = True
         t.start()
@@ -144,12 +159,15 @@ class Gdax:
     def get_orders(self):
         return self.client.get_orders()        
 
+    # This is the main polling entry
     def start_order_book_poll(self):
         def poll_order_book(gdax):
             order_book, algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
             self.start_trading(order_book, algorithm)
             self.start_order_poll(order_book)
+            self.start_historics_update()
+            algorithm.poll_print(order_book, gdax)
             try:
                 while True:
                     algorithm.process_order_book(order_book)
@@ -174,6 +192,6 @@ class Gdax:
                     time.sleep(10) 
                 except:
                     print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
-        t = threading.Thread(args=(order_book,self,), target=poll_orders)
+        t = threading.Thread(args=(order_book, self,), target=poll_orders)
         t.daemon = True
-        t.start()    
+        t.start() 

@@ -42,6 +42,9 @@ class CustomOrderBook(OrderBook):
     #     except:
     #         print('EXCEPTION IN ON_ERROR: {0}'.format(sys.exc_info()[0]))
 
+    def on_close(self):
+        self.Logs.error('Connection closed', 'custom_orderbook')
+
     def on_message(self, message):
         try:
             super(CustomOrderBook, self).on_message(message)
@@ -65,7 +68,6 @@ class CustomOrderBook(OrderBook):
                 if len(self.OrderBookCollection.OrderBookCollection) > 200:
                     self.OrderBookCollection.OrderBookCollection.pop(0)
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
-                self.historics.do_something_with_historical_row(bid, ask, dt.datetime.now())
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
         except:
