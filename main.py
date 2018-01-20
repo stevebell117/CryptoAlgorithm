@@ -5,6 +5,7 @@ from Logic.gdax import Gdax
 from gdax_lib.order_book import OrderBook
 import inspect
 import time
+import datetime as dt
 import traceback
 
 def main():
@@ -14,7 +15,7 @@ def main():
     try:
         #gdax.start_ticker_update()
         #gdax.start_trades_update()
-        #gdax.start_historics_update()
+        gdax.start_historics_update()
         gdax.start_order_book_poll()
         while True:
             inp = input('Enter anything to quit: ')

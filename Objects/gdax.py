@@ -72,19 +72,32 @@ class GdaxHistoric():
     def __init__(self):
         self.historics = list()
     
-    def do_something_with_historical_row(self, bid, ask, time):
+    def do_something_with_historical_row(self, bid, ask, time, volume = 0):
         if len(self.historics) > 0:
             historic = self.historics[-1]
             if historic.time.minute == time.minute:
                 historic.close = bid
             else:
                 new_historic = GdaxHistoricRow()
-                new_historic.populate_historic_row(bid, ask, dt.datetime.now())
+                new_historic.populate_historic_row(bid, ask, dt.datetime.now(), volume)
                 self.historics.append(new_historic)
         else:
             new_historic = GdaxHistoricRow()
-            new_historic.populate_historic_row(bid, ask, dt.datetime.now())
-            self.historics.append(new_historic)        
+            new_historic.populate_historic_row(bid, ask, dt.datetime.now(), volume)
+            self.historics.append(new_historic)
+
+    def add_rows_to_history(self, historic_array):
+        for info in historic_array:
+            if self.historics:
+                historic = next((x for x in self.historics if x.time == dt.datetime.fromtimestamp(info[0])), None)
+                if historic is None:
+                    historic = GdaxHistoricRow()
+                    historic.populate_historic_row_from_history(info[3], info[4], info[5], info[0])
+                    self.historics.append(historic) 
+            else:
+                historic = GdaxHistoricRow()
+                historic.populate_historic_row_from_history(info[3], info[4], info[5], info[0])
+                self.historics.append(historic)       
 
 class GdaxHistoricRow:
     def __init__(self):
@@ -95,15 +108,20 @@ class GdaxHistoricRow:
         self.close = 0
         self.volume = 0
 
-    def populate_historic_row(self, bid, ask, time):
+    def populate_historic_row(self, bid, ask, time, volume = 0):
         self.open = ask
         self.close = ask
         self.low = bid
         self.high = ask
+        self.time = dt.datetime.fromtimestamp(time)
+        if volume > 0:
+            self.volume = volume
 
-    def populate_historic_row_from_history(self, opening, close):
+    def populate_historic_row_from_history(self, opening, close, volume, time):
         self.open = opening
         self.close = close
+        self.time = dt.datetime.fromtimestamp(time)
+        self.volume = volume
 
     def determine_and_get_change_type(self, opening, close):
         percent_to_compare= .00025

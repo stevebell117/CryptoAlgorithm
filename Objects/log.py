@@ -1,12 +1,12 @@
 from enum import Enum
 import datetime as dt
 
-class Logs(object):    
-    class LogType(Enum):
-        INFO = 0
-        WARNING = 1
-        ERROR = 2
+class LogType(Enum):
+    INFO = 0
+    WARNING = 1
+    ERROR = 2
 
+class Logs(object):    
     class Log():
         def __init__(self):
             self.type = None
@@ -28,21 +28,21 @@ class Logs(object):
 
     def info(self, message = '', location = ''):
         log = self.Log()
-        log.type = self.LogType.INFO
+        log.type = LogType.INFO
         log.message = message
         log.location = location
         self._logs.append(log)
 
     def warning(self, message = '', location = ''):
         log = self.Log()
-        log.type = self.LogType.WARNING
+        log.type = LogType.WARNING
         log.message = message
         log.location = location
         self._logs.append(log)
 
     def error(self, message = '', location = ''):
         log = self.Log()
-        log.type = self.LogType.ERROR
+        log.type = LogType.ERROR
         log.message = message
         log.location = location
         self._logs.append(log)
