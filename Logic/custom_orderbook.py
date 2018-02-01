@@ -30,20 +30,15 @@ class CustomOrderBook(OrderBook):
         self.Logs = Logs()
         self.index_walls = dict()
 
-    # def on_error(self, error):
-    #     try:
-    #         super(CustomOrderBook, self).on_error(error)
-
-    #         try:
-    #             self.close()
-    #             time.sleep(10)
-    #         finally:
-    #             self.start()
-    #     except:
-    #         print('EXCEPTION IN ON_ERROR: {0}'.format(sys.exc_info()[0]))
+    def on_error(self, error):
+         try:
+             super(CustomOrderBook, self).on_error(error)
+             self.Logs.error(error, 'custom_orderbook on_error')
+         except Exception as e:
+             self.Logs.error(e, 'custom_orderbook on_error')
 
     def on_close(self):
-        self.Logs.error('Connection closed', 'custom_orderbook')
+        self.Logs.error('Connection closed', 'custom_orderbook on_close')
 
     def on_message(self, message):
         try:
@@ -70,28 +65,28 @@ class CustomOrderBook(OrderBook):
                 self.OrderBookCollection.add_new_row(bid, ask, bid_depth, ask_depth)
                 
                 #print('{} {} bid: {:.3f} @ {:.2f}\task: {:.3f} @ {:.2f}'.format(dt.datetime.now(), self.product_id, bid_depth, bid, ask_depth, ask))
-        except:
-            print('EXCEPTION IN ON_MESSAGE: {0}'.format(traceback.format_exc()))
+        except Exception as e:
+             self.Logs.error(e, 'custom_orderbook on_message')
     
-    def get_nearest_wall_distances(self): #bids and asks are backwards, I really need to fix it...
-        def get_index_of_bid_wall(current_book):
+    def get_nearest_wall_distances(self, current_amount):
+        def get_index_of_ask_wall(current_book, current_amount):
             first, second = itemgetter(0), itemgetter(1)
-            sorted_asks = [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['asks'], key=first), key=first)]
+            sorted_asks = [(k, sum(item[1] for item in tups_to_sum if item[0] >= current_amount)) for k, tups_to_sum in groupby(sorted(current_book['asks'], key=first), key=first)]
             if len(sorted_asks) < 15:
-                return {"bid_index": -1, "bid_value": 0, "bid_amount": 0}
+                return {"ask_index": -1, "ask_value": 0, "ask_amount": 0}
             slice_sorted_asks = sorted_asks[:15]
             value = max(slice_sorted_asks, key=second)
-            return {"bid_index":slice_sorted_asks.index(value), "bid_value":value[1], "bid_amount": value[0]}
-        def get_index_of_ask_wall(current_book):
+            return {"ask_index":slice_sorted_asks.index(value), "ask_value":value[1], "ask_amount": value[0]}
+        def get_index_of_bid_wall(current_book, current_amount):
             first, second = itemgetter(0), itemgetter(1)
-            sorted_bids = [(k, sum(item[1] for item in tups_to_sum)) for k, tups_to_sum in groupby(sorted(current_book['bids'], key=first), key=first)] 
+            sorted_bids = [(k, sum(item[1] for item in tups_to_sum if item[0] <= current_amount)) for k, tups_to_sum in groupby(sorted(current_book['bids'], key=first), key=first)] 
             if len(sorted_bids) < 15:
-                return {"ask_index": -1, "ask_value": 0, "ask_amount": 0}
+                return {"bid_index": -1, "bid_value": 0, "bid_amount": 0}
             slice_sorted_bids = sorted_bids[-15:]
             value = max(slice_sorted_bids, key=second)
-            return {"ask_index":abs(slice_sorted_bids.index(value) - 14), "ask_value":value[1], "ask_amount": value[0]}
+            return {"bid_index":abs(slice_sorted_bids.index(value) - 14), "bid_value":value[1], "bid_amount": value[0]}
         current_book = self.get_current_book()
-        index_walls = {**get_index_of_bid_wall(current_book), **get_index_of_ask_wall(current_book)}
+        index_walls = {**get_index_of_bid_wall(current_book, current_amount), **get_index_of_ask_wall(current_book, current_amount)}
         self.index_walls = index_walls
 
     def determine_if_wall_is_coming(self, previous_amount):
@@ -102,22 +97,19 @@ class CustomOrderBook(OrderBook):
             bid_index = float(self.index_walls["bid_index"])
             bid_value = float(self.index_walls["bid_value"])
             bid_amount = float(self.index_walls["bid_amount"])
-            # if ((ask_index > 4 and ask_value > 14 and bid_index < 4 and bid_value < 14) or bid_index > 4 and bid_value > 14 and ask_index < 4 and ask_value < 14):
-            #     print('ask_i : {0} | ask_v : {1} | askl_a | {2} | bid_i : {3} | bid_v : {4} | bid_a : {5}'.format(ask_index, ask_value, ask_amount, bid_index, bid_value, bid_amount))
-            if ask_index < 2 and bid_index < 2:
-                return {'side': '', 'amount': 0}
-            elif (  ask_index - 4 <= bid_index <= ask_index + 4 and 
+            # if ask_index < 2 and bid_index < 2:
+            #     return {'side': '', 'amount': 0}
+            if (  ask_index - 4 <= bid_index <= ask_index + 4 and 
                     bid_index - 4 <= ask_index <= bid_index + 4 and
                     ask_value - 7 <= bid_value <= ask_value + 7 and 
-                    bid_value - 7 <= ask_value <= bid_value + 7): #and
-                    #bid_amount > previous_amount - 400 and ask_amount < previous_amount + 400):
+                    bid_value - 7 <= ask_value <= bid_value + 7): 
                 return {'side': '', 'amount': 0}
             elif (ask_index > 4 and ask_value > 14
                and bid_index < 4 and bid_value < 14):
-                return {'side': 'buy', 'amount': ask_amount}
+                return {'side': 'buy', 'amount': bid_amount}
             elif (bid_index > 4 and bid_value > 14
                and ask_index < 4 and ask_value < 14):
-                return {'side': 'sell', 'amount': bid_amount}
+                return {'side': 'sell', 'amount': ask_amount}
             return {'side': '', 'amount': 0}
         else:
             return {'side': '', 'amount': 0} 

@@ -8,21 +8,29 @@ import time
 import datetime as dt
 import traceback
 
+def floatTryParse(value):
+    try:
+        return float(value), True
+    except ValueError:
+        return value, False
+
 def main():
     config = ConfigParser()
     config.read('gdax.ini')
     gdax = Gdax(config)
     try:
-        #gdax.start_ticker_update()
-        #gdax.start_trades_update()
         gdax.start_historics_update()
         gdax.start_order_book_poll()
         while True:
-            inp = input('Enter anything to quit: ')
-            if inp != "" :
-                gdax.stop_all_polls()
-                break
-    except Exception as e:
+            inp = input('Enter an alpha value to quit: ')
+            if inp != "":
+                float_value, bool_value = floatTryParse(inp)
+                if bool_value is True:
+                    gdax.update_algorithm_previous_amount(float_value)
+                else:
+                    gdax.stop_all_polls()
+                    break                
+    except:
         print(traceback.format_exc())
     finally:
         gdax.stop_all_polls()

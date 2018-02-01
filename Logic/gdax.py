@@ -23,12 +23,20 @@ class Gdax:
         self.ticker = GdaxTicker()
         self.trades = GdaxTrades()
         self.historics = GdaxHistoric()
+        self.algorithm = None
         self.current_trend = ChangeType.NO_CHANGE
         self.btc_account = config['DEFAULT']['btc_account']
         self.usd_account = config['DEFAULT']['usd_account']
     
     def get_current_btc_amount(self):
         return float(self.client.get_account(self.btc_account)['available'])
+
+    def get_current_btc_cost(self, current_cost):
+        potential_price = self.client.get_product_ticker(product_id='BTC-USD')
+        if 'price' in potential_price:
+            return float((potential_price['price']))
+        else:
+            return current_cost
 
     def get_current_usd_amount(self):
         return float(self.client.get_account(self.usd_account)['available'])
@@ -94,7 +102,7 @@ class Gdax:
         def poll_historics_update(gdax):
             first_run = True
             while(True):
-                if first_run == True:
+                if first_run is True:
                     historic_info = gdax.get_product_historic_rates()
                     #first_run = False
                 else:
@@ -102,7 +110,7 @@ class Gdax:
                     print((dt.datetime.now() - dt.timedelta(minutes=5)).isoformat())
                     historic_info = gdax.get_product_historic_rates(start=(dt.datetime.now() - dt.timedelta(minutes=5)).isoformat(), end=dt.datetime.now().isoformat())
                 gdax.historics.add_rows_to_history(historic_info)
-                gdax.print_historics_sorted()
+                #gdax.print_historics_sorted()
                 time.sleep(45)
         t = threading.Thread(args=(self,), target=poll_historics_update)
         t.daemon = True
@@ -157,24 +165,32 @@ class Gdax:
                 type = 'market')
 
     def get_orders(self):
-        return self.client.get_orders()        
+        return self.client.get_orders()
+
+    def update_algorithm_previous_amount(self, amount):
+        self.algorithm.previous_amount = amount        
 
     # This is the main polling entry
     def start_order_book_poll(self):
         def poll_order_book(gdax):
-            order_book, algorithm = CustomOrderBook(gdax), Algorithm()
+            order_book, self.algorithm = CustomOrderBook(gdax), Algorithm()
             order_book.start()
-            self.start_trading(order_book, algorithm)
+            self.start_trading(order_book, self.algorithm)
             self.start_order_poll(order_book)
             self.start_historics_update()
-            algorithm.poll_print(order_book, gdax)
+            self.algorithm.poll_print(order_book, gdax)
             try:
+                current_cost = 0
                 while True:
-                    algorithm.process_order_book(order_book)
-                    order_book.get_nearest_wall_distances()
+                    current_cost = gdax.get_current_btc_cost(current_cost)
+                    if current_cost != 0:
+                        self.algorithm.process_order_book(order_book, current_cost)
+                        order_book.get_nearest_wall_distances(current_cost)
                     time.sleep(.3)
             except KeyboardInterrupt:
-                order_book.close()     
+                order_book.close()
+            except Exception as e:
+                order_book.Logs.error(e, 'print_stuff')     
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
         t.start()
@@ -185,13 +201,19 @@ class Gdax:
                 try:
                     for order in order_book.Orders.OrdersList:
                         order_status = gdax.client.get_order(order.order_id)
-                        if 'message' in order_status or order_status['status'] == 'cancelled':
+                        if 'message' in order_status or order_status['status'] == 'cancelled' or order_status['status'] == 'rejected':
                             order_book.Orders.update_order(order.order_id, status = OrderStatus.CANCELLED)
                         elif order_status['status'] == 'done':
                             order_book.Orders.update_order(order.order_id, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
+                        elif order_status['status'] == 'open':
+                            continue
+                        else:
+                            if order_status not in order_book.Logs.get_logs():
+                                order_book.Logs.info(order_status, 'poll_orders')
                     time.sleep(10) 
-                except:
-                    print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
+                except Exception as e:
+                    order_book.Logs.error(e, 'poll_orders')
+                    #print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
         t = threading.Thread(args=(order_book, self,), target=poll_orders)
         t.daemon = True
         t.start() 
