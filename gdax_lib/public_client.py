@@ -18,7 +18,7 @@ class PublicClient(object):
 
     """
 
-    def __init__(self, api_url='https://api.gdax.com', timeout=30):
+    def __init__(self, api_url='https://api.gdax.com'):
         """Create GDAX API public client.
 
         Args:
@@ -26,12 +26,11 @@ class PublicClient(object):
 
         """
         self.url = api_url.rstrip('/')
-        self.timeout = timeout
 
     def _get(self, path, params=None):
         """Perform get request"""
 
-        r = requests.get(self.url + path, params=params, timeout=self.timeout)
+        r = requests.get(self.url + path, params=params, timeout=30)
         # r.raise_for_status()
         return r.json()
 

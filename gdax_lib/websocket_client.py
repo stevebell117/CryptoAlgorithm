@@ -15,8 +15,6 @@ from threading import Thread
 from websocket import create_connection, WebSocketConnectionClosedException
 from pymongo import MongoClient
 from gdax_lib.gdax_auth import get_auth_headers
-import traceback
-
 
 class WebsocketClient(object):
     def __init__(self, url="wss://ws-feed.gdax.com", products=None, message_type="subscribe", mongo_collection=None,
@@ -63,15 +61,8 @@ class WebsocketClient(object):
 
         if self.auth:
             timestamp = str(time.time())
-            message = timestamp + 'GET' + '/users/self/verify'
-            message = message.encode('ascii')
-            hmac_key = base64.b64decode(self.api_secret)
-            signature = hmac.new(hmac_key, message, hashlib.sha256)
-            signature_b64 = signature.digest().encode('base64').rstrip('\n')
-            sub_params['signature'] = signature_b64
-            sub_params['key'] = self.api_key
-            sub_params['passphrase'] = self.api_passphrase
-            sub_params['timestamp'] = timestamp
+            message = timestamp + 'GET' + '/users/self'
+            sub_params.update(get_auth_headers(timestamp, message, self.api_key,  self.api_secret, self.api_passphrase))
 
         self.ws = create_connection(self.url)
         self.ws.send(json.dumps(sub_params))
@@ -91,9 +82,9 @@ class WebsocketClient(object):
                 data = self.ws.recv()
                 msg = json.loads(data)
             except ValueError as e:
-                self.on_error(traceback.format_exc())
+                self.on_error(e)
             except Exception as e:
-                self.on_error(traceback.format_exc())
+                self.on_error(e)
             else:
                 self.on_message(msg)
 
@@ -138,7 +129,7 @@ if __name__ == "__main__":
     import time
 
 
-    class MyWebsocketClient(gdax.WebsocketClient):
+    class MyWebsocketClient(WebsocketClient):
         def on_open(self):
             self.url = "wss://ws-feed.gdax.com/"
             self.products = ["BTC-USD", "ETH-USD"]

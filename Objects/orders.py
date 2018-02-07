@@ -1,8 +1,16 @@
 import datetime as dt
 from enum import Enum
 
+class OrderStatus(Enum):
+    OPEN = 0
+    CLOSED = 1
+    FILLED = 2
+    CANCELLED = 3
+    REJECTED = 4
+    OVERRIDE = 5
+
 class Order(object):
-    def __init__(self, order_id, side = 'sell', size = 0, price = 0, previous_amount = 0):
+    def __init__(self, order_id, side = 'sell', size = 0, price = 0, previous_amount = 0, status = OrderStatus.OPEN):
         self.side = side
         self.price = price
         self.size = size
@@ -11,7 +19,8 @@ class Order(object):
         self.time = dt.datetime.now()
         self.previous_amount = previous_amount
         self.order_id = order_id
-        self.status = OrderStatus.OPEN
+        self.status = status
+        self.balanced = False
 
 class Orders(Order):
     def __init__(self):
@@ -47,9 +56,3 @@ class Orders(Order):
     def get_order_by_id(self, order_id):
         order = next(x for x in self.OrdersList if x.order_id == order_id)
         return order
-
-class OrderStatus(Enum):
-    OPEN = 0
-    CLOSED = 1
-    FILLED = 2
-    CANCELLED = 3
