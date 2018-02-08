@@ -177,6 +177,7 @@ class Gdax:
 
     def buy_bitcoin_limit(self, size = 0, price = 0):
         usd = round(self.get_current_usd_amount(), 2)
+
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
         return self.client.buy(size = str(size),
@@ -215,24 +216,26 @@ class Gdax:
             threads = list()
             order_book.start()
             self.algorithm.order_book = order_book
+            threads.append(threading.current_thread())
             threads.append(self.start_trading(order_book, self.algorithm))
             threads.append(self.start_order_poll(order_book))
             threads.append(self.start_historics_update())
             self.algorithm.poll_print(order_book, gdax, threads)
-            try:
-                current_cost = 0
-                while True:
+            current_cost = 0
+            while True:
+                try:
                     current_cost = gdax.get_current_btc_cost(current_cost)
                     if current_cost != 0:
                         self.algorithm.process_order_book(order_book, current_cost)
                         order_book.get_nearest_wall_distances(current_cost, order_book.order_book_btc.get_current_book())
                     time.sleep(.3)
-            except KeyboardInterrupt:
-                order_book.close()
-            except ValueError:
-                pass   
-            except Exception as e:
-                order_book.Logs.error(e, 'poll_order_book')     
+                except KeyboardInterrupt:
+                    order_book.close()
+                except ValueError:
+                    pass   
+                except Exception as e:
+                    order_book.Logs.error(e, 'poll_order_book')  
+               
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
         t.name = 'poll_order_book'

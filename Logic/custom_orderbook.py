@@ -105,12 +105,16 @@ class CustomOrderBookRun(WebsocketClient):
             bid_amount = float(self.index_walls["bid_amount"])
             # if ask_index < 2 and bid_index < 2:
             #     return {'side': '', 'amount': 0}
-            if (    ask_value - 7 <= bid_value <= ask_value + 7 and 
+            if (  ask_index - 4 <= bid_index <= ask_index + 4 and 
+                    bid_index - 4 <= ask_index <= bid_index + 4 and
+                    ask_value - 7 <= bid_value <= ask_value + 7 and 
                     bid_value - 7 <= ask_value <= bid_value + 7): 
                 return {'side': '', 'amount': 0}
-            elif (ask_value > 14 and bid_value < 14):
+            elif (ask_index > 4 and ask_value > 14
+               and bid_index < 4 and bid_value < 14):
                 return {'side': 'buy', 'amount': bid_amount}
-            elif ( bid_value > 14 and ask_value < 14):
+            elif (bid_index > 4 and bid_value > 14
+               and ask_index < 4 and ask_value < 14):
                 return {'side': 'sell', 'amount': ask_amount}
             return {'side': '', 'amount': 0}
         else:

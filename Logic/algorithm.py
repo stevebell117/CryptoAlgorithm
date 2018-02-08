@@ -103,7 +103,6 @@ class Algorithm:
                     print(traceback.format_exc())
                     print(response)
             else:
-                print('Insufficient funds')
                 order = Order('fake', 'buy', self.BUY_SELL_AMOUNT, current_amount, self.previous_amount, OrderStatus.REJECTED)
                 order_book.Orders.add_order(order)
 
@@ -119,7 +118,6 @@ class Algorithm:
                     print(traceback.format_exc())
                     print(response)
             else:
-                print('Insufficient funds')
                 order = Order('fake', 'buy', self.BUY_SELL_AMOUNT, current_amount, self.previous_amount, OrderStatus.REJECTED)
                 order_book.Orders.add_order(order)
 
@@ -135,7 +133,6 @@ class Algorithm:
                     print(traceback.format_exc())
                     print(response)
             else:
-                print('Insufficient funds')
                 order = Order('fake', 'sell', self.BUY_SELL_AMOUNT, current_amount, self.previous_amount, OrderStatus.REJECTED)
                 order_book.Orders.add_order(order)
 
@@ -151,7 +148,6 @@ class Algorithm:
                     print(traceback.format_exc())
                     print(response)
             else:
-                print('Insufficient funds')
                 order = Order('fake', 'sell', self.BUY_SELL_AMOUNT, current_amount, self.previous_amount, OrderStatus.REJECTED)
                 order_book.Orders.add_order(order)
 
