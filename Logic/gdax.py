@@ -219,7 +219,8 @@ class Gdax:
             threads.append(threading.current_thread())
             threads.append(self.start_trading(order_book, self.algorithm))
             threads.append(self.start_order_poll(order_book))
-            threads.append(self.start_historics_update())
+            threads.append(order_book.thread)
+            #threads.append(self.start_historics_update())
             self.algorithm.poll_print(order_book, gdax, threads)
             current_cost = 0
             while True:

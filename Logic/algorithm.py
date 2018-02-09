@@ -89,7 +89,7 @@ class Algorithm:
         except ValueError:
             pass        
         except Exception as e:
-            order_book.Logs.error(e, 'gdax_main' + traceback.format_exc())
+            order_book.Logs.error(e, 'gdax_main')
 
     def buy_bitcoin_logic_market(self, current_amount, gdax, order_book):
         if (round(1 - (current_amount / self.previous_amount), 4) > self.threshold):
@@ -108,18 +108,33 @@ class Algorithm:
 
     def buy_bitcoin_logic_limit(self, current_amount, gdax, order_book):
         if (round(1 - (current_amount / self.previous_amount), 4) > self.threshold):
-            if gdax.get_current_usd_amount() >= self.BUY_SELL_AMOUNT * current_amount:
+            last_sell = next((x for x in order_book.Orders.get_orders()[::-1] if x.side == 'sell' and x.balanced == False and (x.status == OrderStatus.CLOSED or x.status == OrderStatus.OVERRIDE)), None)
+            if last_sell is not None:
+                size = round(self.determine_size(current_amount, last_sell.price), 8)
+            else:
+                size = self.BUY_SELL_AMOUNT
+            if gdax.get_current_usd_amount() >= size * current_amount:
+                response = gdax.buy_bitcoin_limit(str(size), round(current_amount, 2))
+            elif gdax.get_current_usd_amount() >= self.BUY_SELL_AMOUNT * current_amount:
                 response = gdax.buy_bitcoin_limit(str(self.BUY_SELL_AMOUNT), round(current_amount, 2))
-                try:
-                    order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
-                    order_book.Orders.add_order(order)
-                    self.update_previous_info()
-                except:
-                    print(traceback.format_exc())
-                    print(response)
             else:
                 order = Order('fake', 'buy', self.BUY_SELL_AMOUNT, current_amount, self.previous_amount, OrderStatus.REJECTED)
                 order_book.Orders.add_order(order)
+                self.update_previous_info()
+                return
+            try:
+                order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
+                order_book.Orders.add_order(order)
+                self.update_previous_info()
+            except:
+                order_book.Logs.error(response, 'buy_bitcoin_logic_limit')
+
+    def determine_size(self, current_amount, last_sell_price):
+        sell_total = last_sell_price * self.BUY_SELL_AMOUNT
+        potential_buy = current_amount * self.BUY_SELL_AMOUNT
+        difference = sell_total - potential_buy
+        profit_loss = difference / current_amount
+        return profit_loss + self.BUY_SELL_AMOUNT
 
     def sell_bitcoin_logic_market(self, current_amount, gdax, order_book, size = .002):
         if (round(1 - (self.previous_amount / current_amount), 4) > self.threshold):
@@ -202,6 +217,9 @@ class Algorithm:
         order_to_remove = None
         for order in order_book.Orders.OrdersList[::-1]:
             if order.status == OrderStatus.CANCELLED:
+                if order.side == 'buy':
+                    last_sell = next((x for x in order_book.Orders.get_orders()[::-1] if x.side == 'sell' and x.balanced == True and (x.status == OrderStatus.CLOSED or x.status == OrderStatus.OVERRIDE)), None)
+                    if last_sell is not None: order_book.Orders.update_order(last_sell.order_id, balanced=False)
                 order_to_remove = order
                 break
         if order_to_remove != None:

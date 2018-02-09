@@ -43,6 +43,7 @@ class WebsocketClient(object):
         self.stop = False
         self.on_open()
         self.thread = Thread(target=_go)
+        self.thread.name = 'websocket_client'
         self.thread.start()
 
     def _connect(self):

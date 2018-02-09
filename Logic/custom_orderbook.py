@@ -96,6 +96,11 @@ class CustomOrderBookRun(WebsocketClient):
         self.index_walls = index_walls
 
     def get_wall_info(self, previous_amount):
+        INDEX_CONST = 4
+        VALUE_CONST = 14
+        VALUE_DIFF_CONST = VALUE_CONST / 2
+        INDEX_DIFF_CONST = INDEX_CONST / 2
+
         if len(self.index_walls) > 0:
             ask_index = float(self.index_walls["ask_index"])
             ask_value = float(self.index_walls["ask_value"])
@@ -105,16 +110,16 @@ class CustomOrderBookRun(WebsocketClient):
             bid_amount = float(self.index_walls["bid_amount"])
             # if ask_index < 2 and bid_index < 2:
             #     return {'side': '', 'amount': 0}
-            if (  ask_index - 4 <= bid_index <= ask_index + 4 and 
-                    bid_index - 4 <= ask_index <= bid_index + 4 and
-                    ask_value - 7 <= bid_value <= ask_value + 7 and 
-                    bid_value - 7 <= ask_value <= bid_value + 7): 
+            if (  ask_index - INDEX_DIFF_CONST <= bid_index <= ask_index + INDEX_DIFF_CONST and 
+                    bid_index - INDEX_DIFF_CONST <= ask_index <= bid_index + INDEX_DIFF_CONST and
+                    ask_value - VALUE_DIFF_CONST <= bid_value <= ask_value + VALUE_DIFF_CONST and 
+                    bid_value - VALUE_DIFF_CONST <= ask_value <= bid_value + VALUE_DIFF_CONST): 
                 return {'side': '', 'amount': 0}
-            elif (ask_index > 4 and ask_value > 14
-               and bid_index < 4 and bid_value < 14):
+            elif (ask_value < VALUE_CONST
+               and bid_index > INDEX_CONST and bid_value > VALUE_CONST):
                 return {'side': 'buy', 'amount': bid_amount}
-            elif (bid_index > 4 and bid_value > 14
-               and ask_index < 4 and ask_value < 14):
+            elif (bid_value < VALUE_CONST
+               and ask_index > INDEX_CONST and ask_value > VALUE_CONST):
                 return {'side': 'sell', 'amount': ask_amount}
             return {'side': '', 'amount': 0}
         else:
