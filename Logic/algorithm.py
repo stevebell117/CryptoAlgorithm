@@ -27,6 +27,7 @@ class WallType(Enum):
 class Algorithm:
     BUY_SELL_AMOUNT = .002
     threshold = 0.005
+    CURRENT_LIMIT_TO_VERIFY = 50
 
     def __init__(self):
         self.previous_type = BidAskStackType.NEITHER
@@ -36,7 +37,6 @@ class Algorithm:
         self.last_action = dt.datetime.now()
         self.last_print = dt.datetime.now()
         self.order_book = None
-        self.entry = True
 
     def set_order_book(self, order_book):
         self.order_book = order_book
@@ -73,19 +73,15 @@ class Algorithm:
             self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book)         
             current_amount = gdax.get_current_btc_cost(0)
             self.previous_amount = gdax.get_previous_amount(order_book.Orders.get_orders())
-            if current_amount != 0 and self.entry is True:
-                print('Starting amount {0} @ {1}'.format(current_amount, dt.datetime.now()))
-                self.entry = False
-                return
             wall_var = order_book.get_wall_info(self.previous_amount)
             self.check_if_order_complete(order_book, gdax)
-            if self.wall_type != WallType.NO_WALL:
-                if wall_var['side'] == 'sell' or wall_var['side'] == 'buy':
-                    if dt.datetime.now() > self.last_action + dt.timedelta(seconds=30): #30 second cooldown
-                        if wall_var['side'] == 'sell' and self.wall_type == WallType.ASK_WALL:
-                            self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, gdax, order_book)
-                        else:
-                            self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, gdax, order_book)
+            if self.wall_type != WallType.NO_WALL and (wall_var['side'] == 'sell' or wall_var['side'] == 'buy'):
+                if ((dt.datetime.now() > self.last_action + dt.timedelta(seconds=60)) #60 second cooldown
+                    and (current_amount - self.CURRENT_LIMIT_TO_VERIFY <= float(wall_var['amount']) <= current_amount + self.CURRENT_LIMIT_TO_VERIFY)):
+                    if wall_var['side'] == 'sell' and self.wall_type == WallType.ASK_WALL:
+                        self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, gdax, order_book)
+                    else:
+                        self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, gdax, order_book)
         except ValueError:
             pass        
         except Exception as e:
@@ -108,7 +104,7 @@ class Algorithm:
 
     def buy_bitcoin_logic_limit(self, current_amount, gdax, order_book):
         if (round(1 - (current_amount / self.previous_amount), 4) > self.threshold):
-            last_sell = next((x for x in order_book.Orders.get_orders()[::-1] if x.side == 'sell' and x.balanced == False and (x.status == OrderStatus.CLOSED or x.status == OrderStatus.OVERRIDE)), None)
+            last_sell = self.get_last_sell(order_book)
             if last_sell is not None:
                 size = round(self.determine_size(current_amount, last_sell.price), 8)
             else:
@@ -182,15 +178,16 @@ class Algorithm:
                         if any(order_book.Orders.OrdersList):
                             print('Order(s): ***********')
                             for order in order_book.Orders.OrdersList:
-                                print('  Time: {0}\n  Side: {1}\n  Size: {2}\n  Price: {3}\n  Fees: {4}\n  Status: {5}\n'.format(
-                                    order.time, order.side, order.size, order.price, order.fill_fees, order.status
+                                print('  Time: {0}\n  Side: {1}\n  Size: {2}\n  Price: {3}\n  Fees: {4}\n  Status: {5}\n  Balanced: {6}\n'.format(
+                                    order.time, order.side, order.size, order.price, order.fill_fees, order.status, order.balanced
                                 ))
                         if threads:
                             print('Threads: *********')
                             for thread in threads:
                                 print('  Name: {0} | Status: {1}'.format(thread.name, 'Alive' if thread.isAlive() else 'Dead'))
                             print('')
-                        print("""**** {4} **** 
+                        print("""General Information: *******
+   Current Time: {4} 
    Current USD: {0:.2f}   
    Current BTC Balance: {1:.8f} 
    Current BTC Value {5:.2f} 
@@ -213,12 +210,15 @@ class Algorithm:
         t.daemon = True
         t.start()   
 
+    def get_last_sell(self, order_book):
+        return next((x for x in order_book.Orders.get_orders()[::-1] if x.side == 'sell' and x.balanced == False and (x.status == OrderStatus.CLOSED or x.status == OrderStatus.OVERRIDE)), None)
+
     def check_if_order_complete(self, order_book, gdax):
         order_to_remove = None
         for order in order_book.Orders.OrdersList[::-1]:
             if order.status == OrderStatus.CANCELLED:
                 if order.side == 'buy':
-                    last_sell = next((x for x in order_book.Orders.get_orders()[::-1] if x.side == 'sell' and x.balanced == True and (x.status == OrderStatus.CLOSED or x.status == OrderStatus.OVERRIDE)), None)
+                    last_sell = self.get_last_sell(order_book)
                     if last_sell is not None: order_book.Orders.update_order(last_sell.order_id, balanced=False)
                 order_to_remove = order
                 break

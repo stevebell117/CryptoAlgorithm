@@ -22,10 +22,16 @@ def main():
         gdax.start_order_book_poll()
         while True:
             inp = input('Enter an alpha value to quit: ')
+            side = 'sell'
+            value = inp
+            if inp[len(inp)-1].isalpha():
+                if inp[len(inp)-1] == 'b':
+                    side = 'buy'
+                    value = inp[0:len(inp)-2]
             if inp != "":
-                float_value, bool_value = floatTryParse(inp)
+                float_value, bool_value = floatTryParse(value)
                 if bool_value is True:
-                    gdax.override_order(float_value)
+                    gdax.override_order(float_value, side)
                 else:
                     gdax.stop_all_polls()
                     break                

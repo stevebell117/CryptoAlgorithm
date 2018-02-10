@@ -39,7 +39,7 @@ class Orders(Order):
             print('An order must be entered. Order removal failed @ {0}'.format(dt.datetime.now()))
 
     def update_order(self, order_id, size = None, status = None, done_reason = None, fill_fees = None, balanced = None):
-        order = next(x for x in self.OrdersList if x.order_id == order_id)
+        order = self.get_order_by_id(order_id)
         if order is not None:
             if size is not None:
                 order.size = size
@@ -56,5 +56,5 @@ class Orders(Order):
         return self.OrdersList
 
     def get_order_by_id(self, order_id):
-        order = next(x for x in self.OrdersList if x.order_id == order_id)
+        order = next((x for x in self.OrdersList if x.order_id == order_id), None)
         return order

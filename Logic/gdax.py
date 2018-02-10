@@ -205,8 +205,8 @@ class Gdax:
     def assign_algorithm_order_book(self, order_book):
         self.algorithm.set_order_book(order_book)
 
-    def override_order(self, value):
-        order = Order('fake', 'sell', self.algorithm.BUY_SELL_AMOUNT, value, value, OrderStatus.OVERRIDE)
+    def override_order(self, value, side):
+        order = Order('fake', side, self.algorithm.BUY_SELL_AMOUNT, value, value, OrderStatus.OVERRIDE)
         self.algorithm.order_book.Orders.add_order(order)
 
     # This is the main polling entry
