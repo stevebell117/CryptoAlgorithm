@@ -26,9 +26,9 @@ class Database():
 
     def populate_most_recent_order_from_database(self, order_book):
         cursor = self.conn.cursor()
-        cursor.execute('select top 1 * from Orders order by time desc')
-        row = cursor.fetchone()
-        if row:
+        cursor.execute('select * from Orders where status <> 4 and balanced = 0 order by time desc')
+        rows = cursor.fetchall()
+        for row in rows:
             if row[9] == 0: #wtf does Python not have a switch statement
                 order_status = OrderStatus.OPEN
             elif row[9] == 1:
@@ -43,7 +43,7 @@ class Database():
                 order_status = OrderStatus.OVERRIDE
             order = Order(row[8], row[1], row[2], row[3], row[7], order_status)
             order_book.Orders.add_order(order)
-            order_book.Orders.update_order(order=order, fill_fees=float(row[4]), done_reason=row[5], balanced=bool(row[9]))
+            order_book.Orders.update_order(order=order, fill_fees=float(row[4]), done_reason=row[5], balanced=bool(row[10]))
 
     #generic, but whatever
     def execute_command_in_database(self, command):

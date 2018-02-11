@@ -176,8 +176,7 @@ class Gdax:
                 type = 'market')
 
     def buy_bitcoin_limit(self, size = 0, price = 0):
-        usd = round(self.get_current_usd_amount(), 2)
-
+        #usd = round(self.get_current_usd_amount(), 2)
         #actual_size = round(usd / price, 4)
         #if actual_size >= .0001:
         return self.client.buy(size = str(size),
