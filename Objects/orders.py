@@ -38,19 +38,22 @@ class Orders(Order):
         else:
             print('An order must be entered. Order removal failed @ {0}'.format(dt.datetime.now()))
 
-    def update_order(self, order_id, size = None, status = None, done_reason = None, fill_fees = None, balanced = None):
-        order = self.get_order_by_id(order_id)
-        if order is not None:
+    def update_order(self, order_id = None, order = None, size = None, status = None, done_reason = None, fill_fees = None, balanced = None):
+        if order is None: 
+            use_order = self.get_order_by_id(order_id)
+        else: 
+            use_order = order
+        if use_order is not None:
             if size is not None:
-                order.size = size
+                use_order.size = size
             if status is not None:
-                order.status = status
+                use_order.status = status
             if done_reason is not None:
-                order.done_reason = done_reason
+                use_order.done_reason = done_reason
             if fill_fees is not None:
-                order.fill_fees = fill_fees
+                use_order.fill_fees = fill_fees
             if balanced is not None:
-                order.balanced = balanced
+                use_order.balanced = balanced
 
     def get_orders(self):
         return self.OrdersList

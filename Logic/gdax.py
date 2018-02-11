@@ -216,6 +216,7 @@ class Gdax:
             threads = list()
             order_book.start()
             self.algorithm.order_book = order_book
+            self.algorithm.database.populate_most_recent_order_from_database(order_book) #ugh, Java flashbacks
             threads.append(threading.current_thread())
             threads.append(self.start_trading(order_book, self.algorithm))
             threads.append(self.start_order_poll(order_book))
@@ -244,7 +245,7 @@ class Gdax:
         return t
 
     def start_order_poll(self, order_book):
-        def poll_orders(order_book, gdax):
+        def poll_orders(order_book, gdax, algorithm):
             while True:
                 try:
                     for order in order_book.Orders.OrdersList:
@@ -252,9 +253,11 @@ class Gdax:
                             continue
                         order_status = gdax.client.get_order(order.order_id)
                         if 'message' in order_status or order_status['status'] == 'cancelled' or order_status['status'] == 'rejected':
-                            order_book.Orders.update_order(order.order_id, status = OrderStatus.CANCELLED)
+                            order_book.Orders.update_order(order=order, status = OrderStatus.CANCELLED)
+                            algorithm.database.update_order_in_database(order)
                         elif order_status['status'] == 'done':
-                            order_book.Orders.update_order(order.order_id, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
+                            order_book.Orders.update_order(order=order, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
+                            algorithm.database.update_order_in_database(order)
                         elif order_status['status'] == 'open':
                             continue
                         else:
@@ -264,7 +267,7 @@ class Gdax:
                 except Exception as e:
                     order_book.Logs.error(e, 'poll_orders')
                     #print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
-        t = threading.Thread(args=(order_book, self,), target=poll_orders)
+        t = threading.Thread(args=(order_book, self, self.algorithm,), target=poll_orders)
         t.daemon = True
         t.name = 'poll_orders'
         t.start()
