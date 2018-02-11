@@ -8,14 +8,14 @@ class Database():
 
     def insert_order_into_database(self, order):
         cursor = self.conn.cursor()
-        cursor.execute('insert into Orders(side, price, size, fill_fees, done_reason, time, previous_amount, order_id, status, balanced) values ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}'
-                            .format(order.side, order.price, order.size, order.fill_fees, order.done_reason, order.time, order.previous_amount, order.order_id, order.status, order.balanced))
+        cursor.execute('insert into Orders(side, price, size, fill_fees, done_reason, time, previous_amount, order_id, status, balanced) values (\'{0}\', {1}, {2}, {3}, \'{4}\', ?, {5}, \'{6}\', {7}, {8})'
+                            .format(order.side, order.price, order.size, order.fill_fees, order.done_reason, order.previous_amount, order.order_id, order.status.value, '1' if order.balanced else '0'), (order.time))
         self.conn.commit()
 
     def update_order_in_database(self, order):
         cursor = self.conn.cursor()
-        cursor.execute('update Orders SET price = {0}, size = {1}, fill_fees = {2}, done_reason = {3}, previous_amount = {4}, status = {5}, balanced = {6} where order_id = \'{7}\''
-                            .format(order.price, order.size, order.fill_fees, order.done_reason, order.previous_amount, order.status, order.balanced, order.order_id))
+        cursor.execute('update Orders SET price = {0}, size = {1}, fill_fees = {2}, done_reason = \'{3}\', previous_amount = {4}, status = {5}, balanced = {6} where order_id = \'{7}\''
+                            .format(order.price, order.size, order.fill_fees, order.done_reason, order.previous_amount, order.status.value, '1' if order.balanced else '0', order.order_id))
         self.conn.commit()
 
     def remove_order_from_database(self, order):
