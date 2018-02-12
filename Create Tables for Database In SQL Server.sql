@@ -1,5 +1,6 @@
 IF EXISTS(SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = N'Orders') BEGIN DROP TABLE Orders END
 IF EXISTS(SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = N'Orders_status') BEGIN DROP TABLE Orders_Status END
+IF EXISTS(SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = N'Logs') BEGIN DROP TABLE Logs END
 
 CREATE TABLE Orders_Status
 (
@@ -25,6 +26,18 @@ CREATE TABLE Orders
 	product nvarchar(MAX)
 );
 
+GO
+
+CREATE TABLE Logs
+(
+	id uniqueidentifier default newid() PRIMARY KEY,
+	time datetime NOT NULL default GETDATE(),
+	log_type nvarchar(20) NOT NULL,
+	message nvarchar(MAX) NOT NULL,
+	location nvarchar(MAX),
+	additional_message nvarchar(MAX)
+);
+
 insert into Orders_Status
 (id, [value])
 VALUES
@@ -40,4 +53,3 @@ insert into Orders
 VALUES
 ('sell', .002, 8199.99, 'TEST', GETDATE(), 8200.01, 'fake', 1, 0, 'BTC-USD')
 
-select * from Orders where status = 1 order by time desc

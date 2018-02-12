@@ -65,6 +65,7 @@ class CustomOrderBookRun(WebsocketClient):
         self.Orders = Orders()
         self.Logs = Logs()
         self.index_walls = dict()
+        self.threshold_value = 14
 
     def on_message(self, msg):
         try:
@@ -95,11 +96,14 @@ class CustomOrderBookRun(WebsocketClient):
         index_walls = {**get_index_of_bid_wall(order_book, current_amount), **get_index_of_ask_wall(order_book, current_amount)}
         self.index_walls = index_walls
 
-    def get_wall_info(self, previous_amount):
+    def update_threshold_value(self, gdax):
+        volume = gdax.get_24hr_volume(self.threshold_value)
+        self.threshold_value = volume * .0006
+
+    def get_wall_info(self, previous_amount, gdax):
         INDEX_CONST = 4
-        VALUE_CONST = 14
-        VALUE_DIFF_CONST = VALUE_CONST / 2
-        INDEX_DIFF_CONST = INDEX_CONST / 2
+        self.update_threshold_value(gdax)
+        VALUE_DIFF_CONST = self.threshold_value / 2
 
         if len(self.index_walls) > 0:
             ask_index = float(self.index_walls["ask_index"])
@@ -108,18 +112,14 @@ class CustomOrderBookRun(WebsocketClient):
             bid_index = float(self.index_walls["bid_index"])
             bid_value = float(self.index_walls["bid_value"])
             bid_amount = float(self.index_walls["bid_amount"])
-            # if ask_index < 2 and bid_index < 2:
-            #     return {'side': '', 'amount': 0}
-            if (  ask_index - INDEX_DIFF_CONST <= bid_index <= ask_index + INDEX_DIFF_CONST and 
-                    bid_index - INDEX_DIFF_CONST <= ask_index <= bid_index + INDEX_DIFF_CONST and
-                    ask_value - VALUE_DIFF_CONST <= bid_value <= ask_value + VALUE_DIFF_CONST and 
+            if (    ask_value - VALUE_DIFF_CONST <= bid_value <= ask_value + VALUE_DIFF_CONST and 
                     bid_value - VALUE_DIFF_CONST <= ask_value <= bid_value + VALUE_DIFF_CONST): 
                 return {'side': '', 'amount': 0}
-            elif (ask_value < VALUE_CONST
-               and bid_index > INDEX_CONST and bid_value > VALUE_CONST):
+            elif (ask_value < self.threshold_value
+               and bid_index > INDEX_CONST and bid_value > self.threshold_value):
                 return {'side': 'buy', 'amount': bid_amount}
-            elif (bid_value < VALUE_CONST
-               and ask_index > INDEX_CONST and ask_value > VALUE_CONST):
+            elif (bid_value < self.threshold_value
+               and ask_index > INDEX_CONST and ask_value > self.threshold_value):
                 return {'side': 'sell', 'amount': ask_amount}
             return {'side': '', 'amount': 0}
         else:

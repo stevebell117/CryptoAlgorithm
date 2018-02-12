@@ -89,6 +89,13 @@ class Gdax:
     def get_product_24hr_stats(self, product = 'BTC-USD'):
         return self.client.get_product_24hr_stats(product)
 
+    def get_24hr_volume(self, last_volume = 0, product = 'BTC-USD'):
+        var = self.get_product_24hr_stats(product)
+        if 'volume' in var:
+            return float(var['volume'])
+        else:
+            return last_volume
+
     def stop_all_polls(self):
         sys.exit()
 
@@ -235,7 +242,7 @@ class Gdax:
                 except ValueError:
                     pass   
                 except Exception as e:
-                    order_book.Logs.error(e, 'poll_order_book')  
+                    order_book.Logs.error(message=e, location='poll_order_book', additional_message=traceback.format_exc(), db_object=self.algorithm.database)  
                
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
@@ -264,7 +271,7 @@ class Gdax:
                                 order_book.Logs.info(order_status, 'poll_orders')
                     time.sleep(10) 
                 except Exception as e:
-                    order_book.Logs.error(e, 'poll_orders')
+                    order_book.Logs.error(message=e, location='poll_orders', additional_message=traceback.format_exc(), db_object=self.algorithm.database)
                     #print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
         t = threading.Thread(args=(order_book, self, self.algorithm,), target=poll_orders)
         t.daemon = True

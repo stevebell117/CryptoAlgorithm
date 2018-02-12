@@ -1,6 +1,7 @@
 import pyodbc
 from Objects.orders import Order
 from Objects.orders import OrderStatus
+from Objects.log import Log
 
 class Database():
     def __init__(self):
@@ -44,6 +45,11 @@ class Database():
             order = Order(row[8], row[1], row[2], row[3], row[7], order_status)
             order_book.Orders.add_order(order)
             order_book.Orders.update_order(order=order, fill_fees=float(row[4]), done_reason=row[5], balanced=bool(row[10]))
+
+    def write_log_to_database(self, log):
+        cursor = self.conn.cursor()
+        cursor.execute('insert into Logs(log_type, message, location, additional_message) values (\'{0}\', \'{1}\', \'{2}\', \'{3}\')'.format(log.type.name, str(log.message).replace('\'', ' '), log.location, str(log.additional_message).replace('\'', ' ')))
+        self.conn.commit()
 
     #generic, but whatever
     def execute_command_in_database(self, command):

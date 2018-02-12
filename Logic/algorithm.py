@@ -70,14 +70,14 @@ class Algorithm:
         except ValueError:
             pass        
         except Exception as e:
-            order_book.Logs.error(e, 'process_order_book')
+            order_book.Logs.error(message=e, location='process_order_book', additional_message=traceback.format_exc(), db_object=self.database)
     
     def gdax_main(self, order_book, gdax):
         try:
             self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book)         
             current_amount = gdax.get_current_btc_cost(0)
             self.previous_amount = gdax.get_previous_amount(order_book.Orders.get_orders())
-            wall_var = order_book.get_wall_info(self.previous_amount)
+            wall_var = order_book.get_wall_info(self.previous_amount, gdax)
             self.check_if_order_complete(order_book, gdax)
             if self.wall_type != WallType.NO_WALL and (wall_var['side'] == 'sell' or wall_var['side'] == 'buy'):
                 if ((dt.datetime.now() > self.last_action + dt.timedelta(seconds=60)) #60 second cooldown
@@ -89,7 +89,7 @@ class Algorithm:
         except ValueError:
             pass        
         except Exception as e:
-            order_book.Logs.error(e, 'gdax_main')
+            order_book.Logs.error(message=e, location='gdax_main', additional_message=traceback.format_exc(), db_object=self.database)
 
     def buy_bitcoin_logic_market(self, current_amount, gdax, order_book):
         if (round(1 - (current_amount / self.previous_amount), 4) > self.threshold):
@@ -133,10 +133,10 @@ class Algorithm:
                     self.database.update_order_in_database(last_sell)
                 self.update_previous_info()
             except:
-                order_book.Logs.error(response, 'buy_bitcoin_logic_limit')
+                order_book.Logs.error(message=response, location='buy_bitcoin_logic_limit', additional_message=traceback.format_exc(), db_object=self.database)
 
     def determine_size(self, current_amount, last_sell_price):
-        sell_total = last_sell_price * self.BUY_SELL_AMOUNT
+        sell_total = float(str(last_sell_price)) * float(str(self.BUY_SELL_AMOUNT))
         potential_buy = current_amount * self.BUY_SELL_AMOUNT
         difference = sell_total - potential_buy
         profit_loss = difference / current_amount
@@ -205,11 +205,12 @@ class Algorithm:
    Current BTC Balance: {1:.8f} 
    Current BTC Value {5:.2f} 
    Current BTC Cost: {2:.3f} 
+   Current Threshold: {8:.8f} 
    Previous BTC Cost: {3:.3f} 
-   Previous Action Time: {7} 
+   Previous Action Time: {7}
    Division: {6:.4f}"""
                             .format(gdax.get_current_usd_amount(), current_btc_bal, last_amount - .005, float(self.previous_amount), dt.datetime.now(),
-                                    current_btc_bal * last_amount, 1 - (float(self.previous_amount) / last_amount), self.last_action ))
+                                    current_btc_bal * last_amount, 1 - (float(self.previous_amount) / last_amount), self.last_action, order_book.threshold_value ))
                         print('')
                         print('Enter an alpha value to quit: ', end='')
                         sys.stdout.flush()
@@ -217,7 +218,7 @@ class Algorithm:
                 except ValueError:
                     pass        
                 except Exception as e:
-                    order_book.Logs.error(e, 'print_stuff')
+                    order_book.Logs.error(message=e, location='print_stuff', additional_message=traceback.format_exc(), db_object=self.database)
                     print(traceback.format_exc())
         t = threading.Thread(args=(order_book, gdax, threads,), target=print_stuff)
         t.daemon = True
