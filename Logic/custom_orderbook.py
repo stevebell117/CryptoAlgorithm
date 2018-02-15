@@ -14,6 +14,7 @@ import datetime as dt
 import sys
 import traceback
 import copy
+import math
 
 class CustomOrderBook(OrderBook):
     def __init__(self, product_id='BTC-USD', log_to=None):
@@ -98,10 +99,10 @@ class CustomOrderBookRun(WebsocketClient):
 
     def update_threshold_value(self, gdax):
         volume = gdax.get_24hr_volume(self.threshold_value)
-        self.threshold_value = volume * .0006
+        self.threshold_value = max(math.ceil(volume * .0005), 12)
 
     def get_wall_info(self, previous_amount, gdax):
-        INDEX_CONST = 4
+        INDEX_CONST = 2
         self.update_threshold_value(gdax)
         VALUE_DIFF_CONST = self.threshold_value / 2
 
@@ -112,15 +113,17 @@ class CustomOrderBookRun(WebsocketClient):
             bid_index = float(self.index_walls["bid_index"])
             bid_value = float(self.index_walls["bid_value"])
             bid_amount = float(self.index_walls["bid_amount"])
-            if (    ask_value - VALUE_DIFF_CONST <= bid_value <= ask_value + VALUE_DIFF_CONST and 
-                    bid_value - VALUE_DIFF_CONST <= ask_value <= bid_value + VALUE_DIFF_CONST): 
+            if ask_value > self.threshold_value and bid_value > self.threshold_value:
                 return {'side': '', 'amount': 0}
+            elif (  ask_value - VALUE_DIFF_CONST <= bid_value <= ask_value + VALUE_DIFF_CONST and 
+                    bid_value - VALUE_DIFF_CONST <= ask_value <= bid_value + VALUE_DIFF_CONST): 
+                return {'side': '', 'amount': max(ask_amount, bid_amount)}
             elif (ask_value < self.threshold_value
                and bid_index > INDEX_CONST and bid_value > self.threshold_value):
                 return {'side': 'buy', 'amount': bid_amount}
             elif (bid_value < self.threshold_value
                and ask_index > INDEX_CONST and ask_value > self.threshold_value):
                 return {'side': 'sell', 'amount': ask_amount}
-            return {'side': '', 'amount': 0}
+            return {'side': '', 'amount': max(ask_amount, bid_amount)}
         else:
             return {'side': '', 'amount': 0} 

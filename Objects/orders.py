@@ -21,6 +21,7 @@ class Order(object):
         self.order_id = order_id
         self.status = status
         self.balanced = False
+        self.balanced_order = None
 
 class Orders(Order):
     def __init__(self):
@@ -38,7 +39,12 @@ class Orders(Order):
         else:
             print('An order must be entered. Order removal failed @ {0}'.format(dt.datetime.now()))
 
-    def update_order(self, order_id = None, order = None, size = None, status = None, done_reason = None, fill_fees = None, balanced = None):
+    def get_last_order(self):
+        if self.OrdersList:
+            return self.OrdersList[-1]
+        return None
+
+    def update_order(self, order_id = None, order = None, size = None, status = None, done_reason = None, fill_fees = None, time = None, balanced = None):
         if order is None: 
             use_order = self.get_order_by_id(order_id)
         else: 
@@ -54,6 +60,8 @@ class Orders(Order):
                 use_order.fill_fees = fill_fees
             if balanced is not None:
                 use_order.balanced = balanced
+            if time is not None:
+                use_order.time = time
 
     def get_orders(self):
         return self.OrdersList

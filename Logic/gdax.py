@@ -96,6 +96,11 @@ class Gdax:
         else:
             return last_volume
 
+    def cancel_order(self, order):
+        if order.balanced_order is not None:
+            order.balanced_order.balanced = not order.balanced_order.balanced
+        self.client.cancel_order(order.order_id)
+
     def stop_all_polls(self):
         sys.exit()
 
@@ -146,7 +151,6 @@ class Gdax:
                     print((dt.datetime.now() - dt.timedelta(minutes=5)).isoformat())
                     historic_info = gdax.get_product_historic_rates(start=(dt.datetime.now() - dt.timedelta(minutes=5)).isoformat(), end=dt.datetime.now().isoformat())
                 gdax.historics.add_rows_to_history(historic_info)
-                #gdax.print_historics_sorted()
                 time.sleep(45)
         t = threading.Thread(args=(self,), target=poll_historics_update)
         t.daemon = True
@@ -183,9 +187,6 @@ class Gdax:
                 type = 'market')
 
     def buy_bitcoin_limit(self, size = 0, price = 0):
-        #usd = round(self.get_current_usd_amount(), 2)
-        #actual_size = round(usd / price, 4)
-        #if actual_size >= .0001:
         return self.client.buy(size = str(size),
             price = str(price), #USD
             product_id = 'BTC-USD',
@@ -236,14 +237,13 @@ class Gdax:
                     if current_cost != 0:
                         self.algorithm.process_order_book(order_book, current_cost)
                         order_book.get_nearest_wall_distances(current_cost, order_book.order_book_btc.get_current_book())
-                    time.sleep(.3)
+                    time.sleep(.2)
                 except KeyboardInterrupt:
                     order_book.close()
                 except ValueError:
                     pass   
                 except Exception as e:
-                    order_book.Logs.error(message=e, location='poll_order_book', additional_message=traceback.format_exc(), db_object=self.algorithm.database)  
-               
+                    order_book.Logs.error(message=e, location='poll_order_book', additional_message=traceback.format_exc(), db_object=self.algorithm.database)                 
         t = threading.Thread(args=(self,), target=poll_order_book)
         t.daemon = True
         t.name = 'poll_order_book'
@@ -264,15 +264,14 @@ class Gdax:
                         elif order_status['status'] == 'done':
                             order_book.Orders.update_order(order=order, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
                             algorithm.database.update_order_in_database(order)
-                        elif order_status['status'] == 'open':
+                        elif order_status['status'] == 'open' or order_status['status'] == 'pending':
                             continue
                         else:
                             if order_status not in order_book.Logs.get_logs():
                                 order_book.Logs.info(order_status, 'poll_orders')
-                    time.sleep(10) 
+                    time.sleep(.2) 
                 except Exception as e:
                     order_book.Logs.error(message=e, location='poll_orders', additional_message=traceback.format_exc(), db_object=self.algorithm.database)
-                    #print('EXCEPTION IN POLL ORDERS: {0}'.format(traceback.format_exc())) 
         t = threading.Thread(args=(order_book, self, self.algorithm,), target=poll_orders)
         t.daemon = True
         t.name = 'poll_orders'

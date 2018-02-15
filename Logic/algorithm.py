@@ -37,10 +37,14 @@ class Algorithm:
         self.wall_type = WallType.NO_WALL
         self.current_type = BidAskStackType.NEITHER
         self.last_action = dt.datetime.now()
+        self.last_action_amount = 0
         self.last_print = dt.datetime.now()
         self.order_book = None
         self.temp_order = None
-        self.database = Database()
+        try:
+            self.database = Database()
+        except:
+            self.database = None
 
     def set_order_book(self, order_book):
         self.order_book = order_book
@@ -73,6 +77,13 @@ class Algorithm:
             order_book.Logs.error(message=e, location='process_order_book', additional_message=traceback.format_exc(), db_object=self.database)
     
     def gdax_main(self, order_book, gdax):
+        def attempt_cancel_current_order(gdax_main, order_book, gdax):
+            if gdax_main.last_action_amount != float(wall_var['amount']):
+                current_order = order_book.Orders.get_last_order()
+                if current_order is not None and current_order.status == OrderStatus.OPEN:
+                    gdax.cancel_order(current_order)
+                    gdax_main.last_action = gdax_main.last_action - dt.timedelta(seconds=57) #"reset" it, letting the poll_order thread handle removing this order.
+                    gdax_main.last_action_amount = 0
         try:
             self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book)         
             current_amount = gdax.get_current_btc_cost(0)
@@ -80,12 +91,17 @@ class Algorithm:
             wall_var = order_book.get_wall_info(self.previous_amount, gdax)
             self.check_if_order_complete(order_book, gdax)
             if self.wall_type != WallType.NO_WALL and (wall_var['side'] == 'sell' or wall_var['side'] == 'buy'):
-                if ((dt.datetime.now() > self.last_action + dt.timedelta(seconds=60)) #60 second cooldown
-                    and (current_amount - self.CURRENT_LIMIT_TO_VERIFY <= float(wall_var['amount']) <= current_amount + self.CURRENT_LIMIT_TO_VERIFY)):
-                    if wall_var['side'] == 'sell' and self.wall_type == WallType.ASK_WALL:
-                        self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, gdax, order_book, self.BUY_SELL_AMOUNT)
+                if current_amount - self.CURRENT_LIMIT_TO_VERIFY <= float(wall_var['amount']) <= current_amount + self.CURRENT_LIMIT_TO_VERIFY:
+                    if dt.datetime.now() > self.last_action + dt.timedelta(seconds=60): #60 second cooldown):
+                        self.last_action_amount = float(wall_var['amount'])
+                        if wall_var['side'] == 'sell' and self.wall_type == WallType.ASK_WALL:
+                            self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, gdax, order_book, self.BUY_SELL_AMOUNT)
+                        else:
+                            self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, gdax, order_book)
                     else:
-                        self.buy_bitcoin_logic_limit(float(wall_var['amount']) + .01, gdax, order_book)
+                        attempt_cancel_current_order(self, order_book, gdax)
+            else:
+                attempt_cancel_current_order(self, order_book, gdax)
         except ValueError:
             pass        
         except Exception as e:
@@ -126,12 +142,13 @@ class Algorithm:
                 return
             try:
                 order = Order(response['id'], response['side'], response['size'], current_amount, self.previous_amount)
-                order_book.Orders.add_order(order)
-                self.database.insert_order_into_database(order)
                 if last_sell is not None: 
                     order_book.Orders.update_order(order=last_sell, balanced=True)
+                    order.balanced_order = last_sell
                     self.database.update_order_in_database(last_sell)
                 self.update_previous_info()
+                order_book.Orders.add_order(order)
+                self.database.insert_order_into_database(order)
             except:
                 order_book.Logs.error(message=response, location='buy_bitcoin_logic_limit', additional_message=traceback.format_exc(), db_object=self.database)
 
@@ -142,7 +159,7 @@ class Algorithm:
         profit_loss = difference / current_amount
         return profit_loss + self.BUY_SELL_AMOUNT
 
-    def sell_bitcoin_logic_market(self, current_amount, gdax, order_book, size = .001):
+    def sell_bitcoin_logic_market(self, current_amount, gdax, order_book, size = 0.001):
         if (round(1 - (self.previous_amount / current_amount), 4) > self.threshold):
             if gdax.get_current_btc_amount() >= self.BUY_SELL_AMOUNT:
                 response = gdax.sell_bitcoin_market(str(size))
@@ -191,8 +208,8 @@ class Algorithm:
                         if any(order_book.Orders.OrdersList):
                             print('Order(s): ***********')
                             for order in order_book.Orders.OrdersList:
-                                print('  Time: {0}\n  Side: {1}\n  Size: {2}\n  Price: {3}\n  Fees: {4}\n  Status: {5}\n  Balanced: {6}\n'.format(
-                                    order.time, order.side, order.size, order.price, order.fill_fees, order.status, order.balanced
+                                print('  Time: {0}\n  Side: {1}\n  Size: {2}\n  Price: {3:.2f}\n  Fees: {4}\n  Status: {5}\n  Balanced: {6}\n'.format(
+                                    order.time, order.side, order.size, order.price, order.fill_fees, str(order.status.name).capitalize(), order.balanced
                                 ))
                         if threads:
                             print('Threads: *********')
@@ -205,7 +222,7 @@ class Algorithm:
    Current BTC Balance: {1:.8f} 
    Current BTC Value {5:.2f} 
    Current BTC Cost: {2:.3f} 
-   Current Threshold: {8:.8f} 
+   Current Threshold: {8:.0f} 
    Previous BTC Cost: {3:.3f} 
    Previous Action Time: {7}
    Division: {6:.4f}"""
@@ -232,7 +249,7 @@ class Algorithm:
         for order in order_book.Orders.OrdersList[::-1]:
             if order.status == OrderStatus.CANCELLED:
                 if order.side == 'buy':
-                    last_sell = self.get_last_sell(order_book, balanced_to_get=True)
+                    last_sell = order_book.Orders.get_order_by_id(order.balanced_order)
                     if last_sell is not None: 
                         order_book.Orders.update_order(order=last_sell, balanced=False)
                         self.database.update_order_in_database(last_sell)
