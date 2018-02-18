@@ -19,6 +19,7 @@ import traceback
 from Logic.algorithm import Algorithm
 from Objects.orders import OrderStatus
 import uuid
+import requests
 
 class Gdax:
     def __init__(self, config):
@@ -96,9 +97,9 @@ class Gdax:
         else:
             return last_volume
 
-    def cancel_order(self, order):
+    def cancel_order(self, order, order_book):
         if order.balanced_order is not None:
-            order.balanced_order.balanced = not order.balanced_order.balanced
+            order_book.Orders.update_order(order=order.balanced_order, balanced=False)
         self.client.cancel_order(order.order_id)
 
     def stop_all_polls(self):
@@ -215,6 +216,7 @@ class Gdax:
     def override_order(self, value, side):
         order = Order('fake', side, self.algorithm.BUY_SELL_AMOUNT, value, value, OrderStatus.OVERRIDE)
         self.algorithm.order_book.Orders.add_order(order)
+        self.algorithm.database.insert_order_into_database(order)
 
     # This is the main polling entry
     def start_order_book_poll(self):
@@ -241,7 +243,11 @@ class Gdax:
                 except KeyboardInterrupt:
                     order_book.close()
                 except ValueError:
-                    pass   
+                    pass
+                except AttributeError:
+                    pass
+                except requests.exceptions.ReadTimeout:
+                    pass 
                 except Exception as e:
                     order_book.Logs.error(message=e, location='poll_order_book', additional_message=traceback.format_exc(), db_object=self.algorithm.database)                 
         t = threading.Thread(args=(self,), target=poll_order_book)
@@ -270,6 +276,8 @@ class Gdax:
                             if order_status not in order_book.Logs.get_logs():
                                 order_book.Logs.info(order_status, 'poll_orders')
                     time.sleep(.2) 
+                except ValueError:
+                    pass                
                 except Exception as e:
                     order_book.Logs.error(message=e, location='poll_orders', additional_message=traceback.format_exc(), db_object=self.algorithm.database)
         t = threading.Thread(args=(order_book, self, self.algorithm,), target=poll_orders)

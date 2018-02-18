@@ -24,11 +24,11 @@ def main():
             inp = input('Enter an alpha value to quit: ')
             side = 'sell'
             value = inp
-            if inp[len(inp)-1].isalpha():
-                if inp[len(inp)-1] == 'b':
-                    side = 'buy'
-                    value = inp[0:len(inp)-2]
             if inp != "":
+                if inp[len(inp)-1].isalpha():
+                    if inp[len(inp)-1] == 'b':
+                        side = 'buy'
+                        value = inp[0:len(inp)-2]
                 float_value, bool_value = floatTryParse(value)
                 if bool_value is True:
                     gdax.override_order(float_value, side)
