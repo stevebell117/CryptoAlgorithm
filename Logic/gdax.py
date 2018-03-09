@@ -19,6 +19,8 @@ import traceback
 from Logic.algorithm import Algorithm
 from Objects.orders import OrderStatus
 import uuid
+import requests
+import numpy as np
 
 class Gdax:
     def __init__(self, config):
@@ -31,6 +33,7 @@ class Gdax:
         self.current_trend = ChangeType.NO_CHANGE
         self.btc_account = config['DEFAULT']['btc_account']
         self.usd_account = config['DEFAULT']['usd_account']
+        self.current_ema = 0
     
     def get_current_btc_amount(self):
         return float(self.client.get_account(self.btc_account)['available'])
@@ -96,9 +99,9 @@ class Gdax:
         else:
             return last_volume
 
-    def cancel_order(self, order):
+    def cancel_order(self, order, order_book):
         if order.balanced_order is not None:
-            order.balanced_order.balanced = not order.balanced_order.balanced
+            order_book.Orders.update_order(order=order.balanced_order, balanced=False)
         self.client.cancel_order(order.order_id)
 
     def stop_all_polls(self):
@@ -123,7 +126,7 @@ class Gdax:
                 time.sleep(.2)
         t = threading.Thread(args=(order_book,algorithm,self,), target=poll_trading)
         t.daemon = True
-        t.name = 'poll_trading (gdax_main)'
+        t.name = 'gdax_main'
         t.start()
         return t
 
@@ -136,6 +139,33 @@ class Gdax:
         t = threading.Thread(args=(self,), target=poll_trades_update)
         t.daemon = True
         t.name = 'poll_trades_update'
+        t.start()
+        return t
+    
+    def start_ema_update(self, order_book):
+        def poll_ema_update(gdax, order_book):
+            def ExpMovingAverage(values, window):
+                """ Numpy implementation of EMA
+                """
+                weights = np.exp(np.linspace(-1., 0., window))
+                weights /= weights.sum()
+                a =  np.convolve(values, weights, mode='full')[:len(values)]
+                a[:window] = a[window]
+                return a
+
+            current_amounts = list()
+            while(True):
+                try:
+                    current_amounts.append(gdax.get_current_btc_cost(0))
+                    gdax.algorithm.previous_amount = gdax.get_previous_amount(order_book.Orders.get_orders())
+                    if len(current_amounts) > 1:
+                        gdax.current_ema = (ExpMovingAverage(current_amounts, 60 if len(current_amounts) > 120 else int(len(current_amounts) / 2)))
+                except Exception as e:
+                    order_book.Logs.error(message=e, location='poll_ema_update', additional_message=traceback.format_exc(), db_object=self.algorithm.database)
+                time.sleep(60)
+        t = threading.Thread(args=(self, order_book, ), target=poll_ema_update)
+        t.daemon = True
+        t.name = 'poll_ema_update'
         t.start()
         return t
 
@@ -215,6 +245,7 @@ class Gdax:
     def override_order(self, value, side):
         order = Order('fake', side, self.algorithm.BUY_SELL_AMOUNT, value, value, OrderStatus.OVERRIDE)
         self.algorithm.order_book.Orders.add_order(order)
+        self.algorithm.database.insert_order_into_database(order)
 
     # This is the main polling entry
     def start_order_book_poll(self):
@@ -227,6 +258,7 @@ class Gdax:
             threads.append(threading.current_thread())
             threads.append(self.start_trading(order_book, self.algorithm))
             threads.append(self.start_order_poll(order_book))
+            #threads.append(self.start_ema_update(order_book))
             threads.append(order_book.thread)
             #threads.append(self.start_historics_update())
             self.algorithm.poll_print(order_book, gdax, threads)
@@ -241,7 +273,11 @@ class Gdax:
                 except KeyboardInterrupt:
                     order_book.close()
                 except ValueError:
-                    pass   
+                    pass
+                except AttributeError:
+                    pass
+                except requests.exceptions.ReadTimeout:
+                    pass 
                 except Exception as e:
                     order_book.Logs.error(message=e, location='poll_order_book', additional_message=traceback.format_exc(), db_object=self.algorithm.database)                 
         t = threading.Thread(args=(self,), target=poll_order_book)
@@ -255,14 +291,14 @@ class Gdax:
             while True:
                 try:
                     for order in order_book.Orders.OrdersList:
-                        if order.order_id == 'fake':
+                        if order.order_id == 'fake' or order.finalized is True:
                             continue
                         order_status = gdax.client.get_order(order.order_id)
                         if 'message' in order_status or order_status['status'] == 'cancelled' or order_status['status'] == 'rejected':
                             order_book.Orders.update_order(order=order, status = OrderStatus.CANCELLED)
                             algorithm.database.update_order_in_database(order)
                         elif order_status['status'] == 'done':
-                            order_book.Orders.update_order(order=order, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']))
+                            order_book.Orders.update_order(order=order, done_reason = order_status['done_reason'], status = OrderStatus.CLOSED, fill_fees = float(order_status['fill_fees']), finalized=True)
                             algorithm.database.update_order_in_database(order)
                         elif order_status['status'] == 'open' or order_status['status'] == 'pending':
                             continue
@@ -270,6 +306,8 @@ class Gdax:
                             if order_status not in order_book.Logs.get_logs():
                                 order_book.Logs.info(order_status, 'poll_orders')
                     time.sleep(.2) 
+                except ValueError:
+                    pass                
                 except Exception as e:
                     order_book.Logs.error(message=e, location='poll_orders', additional_message=traceback.format_exc(), db_object=self.algorithm.database)
         t = threading.Thread(args=(order_book, self, self.algorithm,), target=poll_orders)

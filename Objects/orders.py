@@ -15,6 +15,7 @@ class Order(object):
         self.price = price
         self.size = size
         self.fill_fees = 0
+        self.finalized = False
         self.done_reason = 'open'
         self.time = dt.datetime.now()
         self.previous_amount = previous_amount
@@ -44,7 +45,7 @@ class Orders(Order):
             return self.OrdersList[-1]
         return None
 
-    def update_order(self, order_id = None, order = None, size = None, status = None, done_reason = None, fill_fees = None, time = None, balanced = None):
+    def update_order(self, order_id = None, order = None, size = None, status = None, done_reason = None, fill_fees = None, time = None, balanced = None, finalized = None):
         if order is None: 
             use_order = self.get_order_by_id(order_id)
         else: 
@@ -62,6 +63,8 @@ class Orders(Order):
                 use_order.balanced = balanced
             if time is not None:
                 use_order.time = time
+            if finalized is not None:
+                use_order.finalized = finalized
 
     def get_orders(self):
         return self.OrdersList

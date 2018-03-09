@@ -73,9 +73,9 @@ class Database():
                     order_status = OrderStatus.REJECTED
                 else:
                     order_status = OrderStatus.OVERRIDE
-                order = Order(row[8], row[1], row[2], row[3], row[7], order_status)
+                order = Order(row[8], row[1], row[2], float(row[3]), float(row[7]), order_status)
                 order_book.Orders.add_order(order)
-                order_book.Orders.update_order(order=order, time=datetime.strptime(str(row[6]), '%Y-%m-%d %H:%M:%S.%f'), fill_fees=float(row[4]), done_reason=row[5], balanced=bool(row[10]))
+                order_book.Orders.update_order(order=order, time=datetime.strptime(str(row[6]), '%Y-%m-%d %H:%M:%S.%f'), fill_fees=float(row[4]), done_reason=row[5], balanced=bool(row[10]), finalized=True)
         finally:
             self.complement_semaphore()
 
