@@ -78,23 +78,29 @@ class CustomOrderBookRun(WebsocketClient):
             self.OrderBookCollection.add_new_row(self.order_book_btc._bid, self.order_book_btc._ask, self.order_book_btc._bid_depth, self.order_book_btc._ask_depth)
 
     def get_nearest_wall_distances(self, current_amount, order_book):
-        def get_index_of_ask_wall(current_book, current_amount):
-            first, second = itemgetter(0), itemgetter(1)
+        def get_index_of_ask_wall(current_book, current_amount, current_threshold):
+            first = itemgetter(0)
             sorted_asks = [(k, sum(item[1] for item in tups_to_sum if item[0] >= current_amount)) for k, tups_to_sum in groupby(sorted(current_book['asks'], key=first), key=first)]
             if len(sorted_asks) < 15:
                 return {"ask_index": -1, "ask_value": 0, "ask_amount": 0}
             slice_sorted_asks = sorted_asks[:15]
-            value = max(slice_sorted_asks, key=second)
-            return {"ask_index":slice_sorted_asks.index(value), "ask_value":value[1], "ask_amount": value[0]}
-        def get_index_of_bid_wall(current_book, current_amount):
-            first, second = itemgetter(0), itemgetter(1)
+            value = next((x for x in slice_sorted_asks if x[1] >= current_threshold), None)
+            if value is not None:
+                return {"ask_index":slice_sorted_asks.index(value), "ask_value":value[1], "ask_amount": value[0]}
+            else:
+                return {"ask_index": -1, "ask_value": 0, "ask_amount": 0}
+        def get_index_of_bid_wall(current_book, current_amount, current_threshold):
+            first = itemgetter(0)
             sorted_bids = [(k, sum(item[1] for item in tups_to_sum if item[0] <= current_amount)) for k, tups_to_sum in groupby(sorted(current_book['bids'], key=first), key=first)] 
             if len(sorted_bids) < 15:
                 return {"bid_index": -1, "bid_value": 0, "bid_amount": 0}
             slice_sorted_bids = sorted_bids[-15:]
-            value = max(slice_sorted_bids, key=second)
-            return {"bid_index":abs(slice_sorted_bids.index(value) - 14), "bid_value":value[1], "bid_amount": value[0]}
-        index_walls = {**get_index_of_bid_wall(order_book, current_amount), **get_index_of_ask_wall(order_book, current_amount)}
+            value = next((x for x in slice_sorted_bids[::-1] if x[1] >= current_threshold), None)
+            if value is not None:
+                return {"bid_index":abs(slice_sorted_bids.index(value) - 14), "bid_value":value[1], "bid_amount": value[0]}
+            else:
+                return {"bid_index": -1, "bid_value": 0, "bid_amount": 0} 
+        index_walls = {**get_index_of_bid_wall(order_book, current_amount, self.threshold_value), **get_index_of_ask_wall(order_book, current_amount, self.threshold_value)}
         self.index_walls = index_walls
 
     def update_threshold_value(self, gdax):
@@ -106,10 +112,10 @@ class CustomOrderBookRun(WebsocketClient):
         VALUE_DIFF_CONST = self.threshold_value / 2
 
         if len(self.index_walls) > 0:
-            ask_index = float(self.index_walls["ask_index"])
+            #ask_index = float(self.index_walls["ask_index"])
             ask_value = float(self.index_walls["ask_value"])
             ask_amount = float(self.index_walls["ask_amount"])
-            bid_index = float(self.index_walls["bid_index"])
+            #bid_index = float(self.index_walls["bid_index"])
             bid_value = float(self.index_walls["bid_value"])
             bid_amount = float(self.index_walls["bid_amount"])
             if ask_value >= self.threshold_value and bid_value >= self.threshold_value:

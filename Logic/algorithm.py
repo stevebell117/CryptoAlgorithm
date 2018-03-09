@@ -22,7 +22,7 @@ class WallType(Enum):
     BID_WALL = 2
 
 class Algorithm:
-    BUY_SELL_AMOUNT = .002
+    BUY_SELL_AMOUNT = .001
     threshold = 0.005
     CURRENT_LIMIT_TO_VERIFY = 50
 
@@ -30,7 +30,7 @@ class Algorithm:
         self.previous_type = BidAskStackType.NEITHER
         self.previous_amount = 0
         self.wall_type = WallType.NO_WALL
-        self.current_type = BidAskStackType.NEITHER
+        #self.current_type = BidAskStackType.NEITHER
         self.last_action = dt.datetime.now()
         self.last_action_amount = 0
         self.last_print = dt.datetime.now()
@@ -74,21 +74,18 @@ class Algorithm:
     def gdax_main(self, order_book, gdax):
         def attempt_cancel_current_order(algorithm, order_book, gdax, wall_var):
             current_order = order_book.Orders.get_last_order()
-            if current_order is not None and current_order.status == OrderStatus.OPEN:
-                print('{0} | {1}'.format(current_order.price, wall_var['amount']))
-            if current_order is not None and not (current_order.price - .01 == wall_var['amount'] or current_order.price + .01 == wall_var['amount']):
-                if current_order.status == OrderStatus.OPEN:
-                    gdax.cancel_order(current_order, order_book)
-                    algorithm.last_action = algorithm.last_action - dt.timedelta(seconds=57) #"reset" it, letting the poll_order thread handle removing this order.
+            if current_order is not None and not (current_order.price - .01 <= wall_var['amount'] <= current_order.price + .01) and current_order.status == OrderStatus.OPEN:
+                gdax.cancel_order(current_order, order_book)
+                algorithm.last_action = algorithm.last_action - dt.timedelta(seconds=57) #"reset" it, letting the poll_order thread handle removing this order.
         try:
-            self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book)         
+            #self.current_type = order_book.OrderBookCollection.determine_if_sell_or_buy_bids_are_stacked(order_book) #Jeez, this hasn't been used in awhile....
             current_amount = gdax.get_current_btc_cost(0)
             self.previous_amount = gdax.get_previous_amount(order_book.Orders.get_orders())
             wall_var = order_book.get_wall_info(self.previous_amount, gdax)
             self.check_if_order_complete(order_book, gdax)
             if self.wall_type != WallType.NO_WALL and (wall_var['side'] == 'sell' or wall_var['side'] == 'buy'):
                 if current_amount - self.CURRENT_LIMIT_TO_VERIFY <= float(wall_var['amount']) <= current_amount + self.CURRENT_LIMIT_TO_VERIFY:
-                    if dt.datetime.now() > self.last_action + dt.timedelta(seconds=60): #60 second cooldown):
+                    if dt.datetime.now() > self.last_action + dt.timedelta(seconds=60): #60 second cooldown
                         if wall_var['amount'] != current_amount:
                             if wall_var['side'] == 'sell' and self.wall_type == WallType.ASK_WALL:
                                 self.sell_bitcoin_logic_limit(float(wall_var['amount']) - .01, gdax, order_book, self.BUY_SELL_AMOUNT)
@@ -123,7 +120,7 @@ class Algorithm:
         if round(1 - current_amount / self.previous_amount, 4) > self.threshold:
             last_sell = self.get_last_sell(order_book)
             if last_sell is not None:
-                size = round(self.determine_size(current_amount, last_sell.price), 8)
+                size = round(self.determine_size(current_amount, last_sell.price, float(last_sell.size)), 8)
             else:
                 size = self.BUY_SELL_AMOUNT
             if gdax.get_current_usd_amount() >= size * current_amount:
@@ -148,12 +145,12 @@ class Algorithm:
             except:
                 order_book.Logs.error(message=response, location='buy_bitcoin_logic_limit', additional_message=traceback.format_exc(), db_object=self.database)
 
-    def determine_size(self, current_amount, last_sell_price):
-        sell_total = float(str(last_sell_price)) * float(str(self.BUY_SELL_AMOUNT))
-        potential_buy = current_amount * self.BUY_SELL_AMOUNT
+    def determine_size(self, current_amount, last_sell_price, last_sell_size):
+        sell_total = float(str(last_sell_price)) * float(str(last_sell_size))
+        potential_buy = current_amount * last_sell_size
         difference = sell_total - potential_buy
         profit_loss = difference / current_amount
-        return profit_loss + self.BUY_SELL_AMOUNT
+        return profit_loss + last_sell_size
 
     def sell_bitcoin_logic_market(self, current_amount, gdax, order_book, size = 0.001):
         if (round(1 - (self.previous_amount / current_amount), 4) > self.threshold):
@@ -219,12 +216,12 @@ class Algorithm:
    Current BTC Balance: {1:.8f} 
    Current BTC Value {5:.2f} 
    Current BTC Cost: {2:.3f} 
-   Current Threshold: {8:.0f} 
+   Current Threshold: {7:.0f}
+   Current EMA: {8} 
    Previous BTC Cost: {3:.3f} 
-   Previous Action Time: {7}
    Division: {6:.4f}"""
                                 .format(gdax.get_current_usd_amount(), current_btc_bal, last_amount - .005, float(self.previous_amount), dt.datetime.now(),
-                                    current_btc_bal * last_amount, 1 - (float(self.previous_amount) / last_amount), self.last_action, order_book.threshold_value ))
+                                    current_btc_bal * last_amount, 1 - (float(self.previous_amount) / last_amount), order_book.threshold_value, gdax.current_ema ))
                             print('')
                             print('Enter an alpha value to quit: ', end='')
                             sys.stdout.flush()
